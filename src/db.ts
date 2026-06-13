@@ -22,6 +22,20 @@ export function rowDropSlots(row: DominanceRow): number[] {
   return slots
 }
 
+export function findRowByDrops(
+  rows: DominanceRow[],
+  bird0: number,
+  bird1: number,
+  bird2: number | null,
+): DominanceRow | undefined {
+  return rows.find(
+    (r) =>
+      r.bird0_drop === bird0 &&
+      r.bird1_drop === bird1 &&
+      (bird2 == null ? r.bird2_drop == null : r.bird2_drop === bird2),
+  )
+}
+
 export type DominanceStats = {
   cycle: number
   n_assignments: number

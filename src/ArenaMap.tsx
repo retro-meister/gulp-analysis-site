@@ -27,7 +27,8 @@ const DROP_SLOTS = [
 ] as const
 
 const SIZE = 400
-const SVG_PAD = 18
+const PAD = { top: 12, right: 4, bottom: 4, left: 4 }
+export const ARENA_DISPLAY_SIZE = SIZE
 
 const cx = DROP_SLOTS.reduce((sum, slot) => sum + slot.x, 0) / DROP_SLOTS.length
 const cy = DROP_SLOTS.reduce((sum, slot) => sum + slot.y, 0) / DROP_SLOTS.length
@@ -35,14 +36,16 @@ const radius =
   Math.max(...DROP_SLOTS.map((slot) => Math.hypot(slot.x - cx, slot.y - cy))) *
   1.12
 const halfExtent = radius * 1.08
-const plotSize = SIZE - 2 * SVG_PAD
-const scale = plotSize / (2 * halfExtent)
-const center = SIZE / 2
+const availW = SIZE - PAD.left - PAD.right
+const availH = SIZE - PAD.top - PAD.bottom
+const scale = Math.min(availW, availH) / (2 * halfExtent)
+const centerX = PAD.left + availW / 2
+const centerY = PAD.top + availH / 2
 
 function toSvg(wx: number, wy: number) {
   return {
-    x: center + (wx - cx) * scale,
-    y: center - (wy - cy) * scale,
+    x: centerX + (wx - cx) * scale,
+    y: centerY - (wy - cy) * scale,
   }
 }
 
@@ -51,10 +54,14 @@ export function ArenaMap({ highlightedSlots }: { highlightedSlots: number[] }) {
   const circleR = radius * scale
 
   return (
-    <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="size-[400px] max-w-full shrink-0">
+    <svg
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      className="block max-w-full shrink-0"
+      style={{ width: ARENA_DISPLAY_SIZE, height: ARENA_DISPLAY_SIZE }}
+    >
       <circle
-        cx={center}
-        cy={center}
+        cx={centerX}
+        cy={centerY}
         r={circleR}
         fill="none"
         stroke="#ffffff"

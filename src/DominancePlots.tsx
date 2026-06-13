@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import type { DominanceRow, DominanceStats, Zone } from './db'
-import { rowDropSlots } from './db'
+import { findRowByDrops, rowDropSlots } from './db'
 import { ArenaMap } from './ArenaMap'
 
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
@@ -173,6 +173,112 @@ function axisTicks(min: number, max: number, count = 5): number[] {
 
 function formatTick(v: number): string {
   return Math.round(v).toLocaleString()
+}
+
+function parseDropSlot(value: string): number | null {
+  const n = Number.parseInt(value.trim(), 10)
+  if (!Number.isInteger(n) || n < 1 || n > 25) return null
+  return n
+}
+
+function DropLookup({
+  cycle,
+  rows,
+  selected,
+  onSelect,
+}: {
+  cycle: number
+  rows: DominanceRow[]
+  selected: DominanceRow
+  onSelect: (simIndex: number) => void
+}) {
+  const threeBird = cycle >= 3
+  const [bird0, setBird0] = useState(String(selected.bird0_drop))
+  const [bird1, setBird1] = useState(String(selected.bird1_drop))
+  const [bird2, setBird2] = useState(
+    selected.bird2_drop != null ? String(selected.bird2_drop) : '',
+  )
+  const [error, setError] = useState<string | null>(null)
+
+  const tryLookup = (nextBird0: string, nextBird1: string, nextBird2: string) => {
+    const b0 = parseDropSlot(nextBird0)
+    const b1 = parseDropSlot(nextBird1)
+    const b2 = threeBird ? parseDropSlot(nextBird2) : null
+
+    if (b0 == null || b1 == null || (threeBird && b2 == null)) {
+      setError(null)
+      return
+    }
+
+    const row = findRowByDrops(rows, b0, b1, b2)
+    if (!row) {
+      setError('invalid')
+      return
+    }
+
+    setError(null)
+    onSelect(row.sim_index)
+  }
+
+  const inputClass =
+    'w-11 rounded border border-gray-600 bg-gray-900 px-1.5 py-0.5 text-center text-xs text-gray-100'
+
+  return (
+    <div className="flex shrink-0 flex-col items-center gap-1.5">
+      <div className="flex flex-col items-center gap-1.5">
+        <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
+          Bird 0
+          <input
+            type="number"
+            min={1}
+            max={25}
+            value={bird0}
+            onChange={(e) => {
+              const next = e.target.value
+              setBird0(next)
+              tryLookup(next, bird1, bird2)
+            }}
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
+          Bird 1
+          <input
+            type="number"
+            min={1}
+            max={25}
+            value={bird1}
+            onChange={(e) => {
+              const next = e.target.value
+              setBird1(next)
+              tryLookup(bird0, next, bird2)
+            }}
+            className={inputClass}
+          />
+        </label>
+        {threeBird && (
+          <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
+            Bird 2
+            <input
+              type="number"
+              min={1}
+              max={25}
+              value={bird2}
+              onChange={(e) => {
+                const next = e.target.value
+                setBird2(next)
+                tryLookup(bird0, bird1, next)
+              }}
+              className={inputClass}
+            />
+          </label>
+        )}
+      </div>
+      {error && (
+        <p className="text-center text-[10px] leading-tight text-red-400">{error}</p>
+      )}
+    </div>
+  )
 }
 
 function basePointStyle(zone: Zone, dense: boolean) {
@@ -403,7 +509,7 @@ function CyclePanel({
   const overlayClipId = `overlay-clip-${cycle}`
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex items-center gap-4">
       <div
         ref={plotRef}
         className="relative size-[400px] max-w-full shrink-0"
@@ -592,6 +698,13 @@ function CyclePanel({
           </text>
         </svg>
       </div>
+      <DropLookup
+        key={selected.sim_index}
+        cycle={cycle}
+        rows={rows}
+        selected={selected}
+        onSelect={onSelect}
+      />
       <ArenaMap highlightedSlots={rowDropSlots(selected)} />
     </div>
   )
