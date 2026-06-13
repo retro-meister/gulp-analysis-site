@@ -190,7 +190,6 @@ function DropLookup({
   rows,
   selected,
   onSelect,
-  onSetReference,
   onResetReference,
   referenceIsWr,
 }: {
@@ -198,7 +197,6 @@ function DropLookup({
   rows: DominanceRow[]
   selected: DominanceRow
   onSelect: (simIndex: number) => void
-  onSetReference: () => void
   onResetReference: () => void
   referenceIsWr: boolean
 }) {
@@ -287,20 +285,12 @@ function DropLookup({
       <div className="flex flex-col items-center gap-1">
         <button
           type="button"
-          onClick={onSetReference}
-          className="rounded border border-gray-600 bg-gray-800 px-2 py-0.5 text-[10px] text-gray-200 hover:bg-gray-700"
+          onClick={onResetReference}
+          disabled={referenceIsWr}
+          className="rounded border border-gray-600 bg-gray-800 px-2 py-0.5 text-[10px] text-gray-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:border-gray-700 disabled:bg-gray-900 disabled:text-gray-500 disabled:hover:bg-gray-900"
         >
-          Set reference
+          Reset to WR
         </button>
-        {!referenceIsWr && (
-          <button
-            type="button"
-            onClick={onResetReference}
-            className="text-[10px] text-gray-400 underline hover:text-gray-200"
-          >
-            Reset to WR
-          </button>
-        )}
         <p className="text-center text-[9px] text-gray-500">Hold shift on plot</p>
       </div>
       {error && (
@@ -503,13 +493,15 @@ function CyclePanel({
       sim_index: row.sim_index,
       cx: xScale(row.spread),
       cy: yScale(row.frame),
-      zone: classifyZone(
-        row.frame,
-        row.spread,
-        reference.frame,
-        reference.spread,
-        reference.simIndex != null && row.sim_index === reference.simIndex,
-      ),
+      zone: row.is_wr
+        ? 'wr'
+        : classifyZone(
+            row.frame,
+            row.spread,
+            reference.frame,
+            reference.spread,
+            false,
+          ),
     }))
   }, [rows, reference, viewport, plotW, plotH])
 
@@ -621,6 +613,9 @@ function CyclePanel({
   const selectedPoint = points.find((p) => p.sim_index === selectedSimIndex)
   const selectedZone = selectedPoint?.zone ?? 'tradeoff'
   const selectedStyle = selectedPointStyle(selectedZone)
+  const referenceIsWr =
+    reference.simIndex === wr.sim_index ||
+    (spansEqual(reference.spread, wr.spread) && reference.frame === wr.frame)
 
   const x = scaleLinear(
     [viewport.xMin, viewport.xMax],
@@ -670,7 +665,7 @@ function CyclePanel({
             textAnchor="middle"
             className="fill-gray-200 text-[13px] font-medium"
           >
-            Cycle {cycle}
+            Cycle {cycle} ({rows.length.toLocaleString()} permutations)
           </text>
 
           <line
@@ -831,15 +826,8 @@ function CyclePanel({
         rows={rows}
         selected={selected}
         onSelect={onSelect}
-        onSetReference={() =>
-          onSetReference({
-            spread: selected.spread,
-            frame: selected.frame,
-            simIndex: selected.sim_index,
-          })
-        }
         onResetReference={onResetReference}
-        referenceIsWr={reference.simIndex === wr.sim_index}
+        referenceIsWr={referenceIsWr}
       />
       <TrajectoryPlayback
         simIndex={selected.sim_index}
@@ -915,6 +903,8 @@ export function DominancePlots({
     (cycle: number) => {
       const wr = rows.find((r) => r.cycle === cycle && r.is_wr)
       if (wr) {
+        setActiveCycle(cycle)
+        setSelected((prev) => ({ ...prev, [cycle]: wr.sim_index }))
         setReference((prev) => ({
           ...prev,
           [cycle]: { spread: wr.spread, frame: wr.frame, simIndex: wr.sim_index },
