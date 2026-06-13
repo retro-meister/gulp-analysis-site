@@ -6,6 +6,7 @@ import {
   statsForReference,
 } from './db'
 import { TrajectoryPlayback } from './TrajectoryPlayback'
+import { referenceFromPreset, referencePresets, wrCalculationLabel } from './referencePresets'
 
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
 const W = 400
@@ -1488,6 +1489,31 @@ export function DominancePlots({
     [rows],
   )
 
+  const handleApplyPreset = useCallback(
+    (presetId: string) => {
+      const preset = referencePresets.find((p) => p.id === presetId)
+      if (!preset) return
+      setReference((prev) => ({
+        ...prev,
+        ...referenceFromPreset(preset, cycles),
+      }))
+    },
+    [cycles],
+  )
+
+  const handleSetWrCalculation = useCallback(() => {
+    const wrReference = defaultWrReference(rows, cycles)
+    setReference(wrReference)
+    setSelected((prev) => {
+      const next = { ...prev }
+      for (const cycle of cycles) {
+        const simIndex = wrReference[cycle]?.simIndex
+        if (simIndex != null) next[cycle] = simIndex
+      }
+      return next
+    })
+  }, [rows, cycles])
+
   const referenceStats = useMemo(
     () =>
       cycles.map((cycle) => ({
@@ -1506,6 +1532,25 @@ export function DominancePlots({
 
   return (
     <div className="flex flex-col items-center">
+      <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={handleSetWrCalculation}
+          className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-[11px] text-gray-200 hover:bg-gray-700"
+        >
+          {wrCalculationLabel}
+        </button>
+        {referencePresets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => handleApplyPreset(preset.id)}
+              className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-[11px] text-gray-200 hover:bg-gray-700"
+            >
+              {preset.label}
+            </button>
+          ))}
+      </div>
       {cycles.map((cycle, i) => (
         <div key={cycle} className="flex w-full flex-col items-center">
           {i > 0 && <div className="my-6 h-px w-full bg-gray-600" />}
