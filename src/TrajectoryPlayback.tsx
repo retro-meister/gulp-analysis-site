@@ -28,16 +28,32 @@ export function TrajectoryPlayback({
   const [trajectory, setTrajectory] = useState<TrajectoryData | null>(null)
   const [playing, setPlaying] = useState(false)
   const [frame, setFrame] = useState(CYCLE_FRAME_OFFSET + 1)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const birdAssignments = rowBirdAssignments(selected)
 
   useEffect(() => {
-    setPlaying(false)
-    setFrame(CYCLE_FRAME_OFFSET + 1)
-    setTrajectory(null)
-    setError(null)
+    let cancelled = false
+
+    void loadTrajectory(simIndex)
+      .then((data) => {
+        if (cancelled) return
+        setTrajectory(data)
+        setFrame(playbackStartFrame(data.maxFrame))
+        setError(null)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        setError(e instanceof Error ? e.message : 'Failed to load trajectory')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [simIndex])
 
   useEffect(() => {
@@ -85,7 +101,10 @@ export function TrajectoryPlayback({
   }
 
   const toggleRef = useRef(togglePlayback)
-  toggleRef.current = togglePlayback
+
+  useEffect(() => {
+    toggleRef.current = togglePlayback
+  })
 
   useEffect(() => {
     if (!keyboardActive) return
@@ -164,7 +183,9 @@ export function TrajectoryPlayback({
         <span className="w-14 shrink-0 text-right font-mono text-[10px] tabular-nums text-gray-400">
           {trajectory
             ? `${toDisplayFrame(frame)}/${displayMaxFrame(trajectory.maxFrame)}`
-            : '—/—'}
+            : loading
+              ? '…/…'
+              : '—/—'}
         </span>
       </div>
       {error && <p className="text-[10px] text-red-400">{error}</p>}

@@ -1385,6 +1385,7 @@ function CyclePanel({
         referenceIsWr={referenceIsWr}
       />
       <TrajectoryPlayback
+        key={selected.sim_index}
         simIndex={selected.sim_index}
         selected={selected}
         keyboardActive={keyboardActive}
