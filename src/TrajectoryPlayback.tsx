@@ -1,21 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArenaMap } from './ArenaMap'
+import { CYCLE_FRAME_OFFSET, toDisplayFrame } from './cycleFrames'
 import { loadTrajectory, rowBirdAssignments, type DominanceRow, type TrajectoryData } from './db'
 import { ARENA_SIZE } from './arenaProjection'
 
 const FRAME_MS = 1000 / 30
-const SKIP_FRAMES = 50
 
 function playbackStartFrame(maxFrame: number) {
-  return Math.min(SKIP_FRAMES + 1, maxFrame)
-}
-
-function displayFrame(frame: number) {
-  return Math.max(1, frame - SKIP_FRAMES)
+  return Math.min(CYCLE_FRAME_OFFSET + 1, maxFrame)
 }
 
 function displayMaxFrame(maxFrame: number) {
-  return Math.max(1, maxFrame - SKIP_FRAMES)
+  return toDisplayFrame(maxFrame)
 }
 
 export function TrajectoryPlayback({
@@ -31,7 +27,7 @@ export function TrajectoryPlayback({
 }) {
   const [trajectory, setTrajectory] = useState<TrajectoryData | null>(null)
   const [playing, setPlaying] = useState(false)
-  const [frame, setFrame] = useState(SKIP_FRAMES + 1)
+  const [frame, setFrame] = useState(CYCLE_FRAME_OFFSET + 1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,7 +35,7 @@ export function TrajectoryPlayback({
 
   useEffect(() => {
     setPlaying(false)
-    setFrame(SKIP_FRAMES + 1)
+    setFrame(CYCLE_FRAME_OFFSET + 1)
     setTrajectory(null)
     setError(null)
   }, [simIndex])
@@ -130,8 +126,8 @@ export function TrajectoryPlayback({
 
   const birds = trajectory?.frames.get(frame) ?? []
   const playbackFrame = trajectory ? frame : undefined
-  const minFrame = trajectory ? playbackStartFrame(trajectory.maxFrame) : SKIP_FRAMES + 1
-  const maxFrame = trajectory?.maxFrame ?? SKIP_FRAMES + 1
+  const minFrame = trajectory ? playbackStartFrame(trajectory.maxFrame) : CYCLE_FRAME_OFFSET + 1
+  const maxFrame = trajectory?.maxFrame ?? CYCLE_FRAME_OFFSET + 1
 
   return (
     <div
@@ -167,7 +163,7 @@ export function TrajectoryPlayback({
         />
         <span className="w-14 shrink-0 text-right font-mono text-[10px] tabular-nums text-gray-400">
           {trajectory
-            ? `${displayFrame(frame)}/${displayMaxFrame(trajectory.maxFrame)}`
+            ? `${toDisplayFrame(frame)}/${displayMaxFrame(trajectory.maxFrame)}`
             : '—/—'}
         </span>
       </div>

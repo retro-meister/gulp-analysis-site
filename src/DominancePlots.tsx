@@ -7,6 +7,7 @@ import {
 } from './db'
 import { TrajectoryPlayback } from './TrajectoryPlayback'
 import { referenceFromPreset, referencePresets, wrCalculationLabel, formatReferencePresetSnippet, defaultReference, getActiveCalculationId } from './referencePresets'
+import { formatDisplayFrame } from './cycleFrames'
 
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
 const W = 400
@@ -1130,7 +1131,7 @@ function CyclePanel({
                 dominantBaseline="middle"
                 className="fill-gray-400 text-[8px]"
               >
-                {formatTick(tick)}
+                {formatDisplayFrame(tick)}
               </text>
             </g>
           ))}
@@ -1177,7 +1178,7 @@ function CyclePanel({
                   dominantBaseline="middle"
                   className="fill-gray-300 text-[8px] font-medium"
                 >
-                  {formatTick(reference.frame)}
+                  {formatDisplayFrame(reference.frame)}
                 </text>
               </g>
             )}

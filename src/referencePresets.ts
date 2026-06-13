@@ -1,3 +1,4 @@
+import { toDisplayFrame, toRawFrame } from './cycleFrames'
 import type { DominanceRow, ReferencePoint } from './db'
 
 export type ReferencePresetPoint = {
@@ -19,40 +20,40 @@ export const referencePresets: ReferencePreset[] = [
     id: 'extremely-generous',
     label: 'Set Laughably Generous Calculation',
     points: {
-      1: { frame: 120, spread: 7500 },
-      2: { frame: 233, spread: 8287 },
-      3: { frame: 165, spread: 10650 },
-      4: { frame: 285, spread: 10100 },
+      1: { frame: 70, spread: 7500 },
+      2: { frame: 183, spread: 8287 },
+      3: { frame: 115, spread: 10650 },
+      4: { frame: 235, spread: 10100 },
     },
   },
   // {
   //   id: 'extremely-generous-alt',
   //   label: 'Set Laughably Generous Calculation',
   //   points: {
-  //     1: { frame: 118, spread: 7916 },
-  //     2: { frame: 235, spread: 10092 },
-  //     3: { frame: 168, spread: 11067 },
-  //     4: { frame: 285, spread: 10100 },
+  //     1: { frame: 68, spread: 7916 },
+  //     2: { frame: 185, spread: 10092 },
+  //     3: { frame: 118, spread: 11067 },
+  //     4: { frame: 235, spread: 10100 },
   //   },
   // },
   {
     id: 'generous',
     label: 'Set Generous Calculation',
     points: {
-      1: { frame: 116, spread: 6617 },
-      2: { frame: 233, spread: 7517 },
-      3: { frame: 163, spread: 10120 },
-      4: { frame: 274, spread: 10111 },
+      1: { frame: 66, spread: 6617 },
+      2: { frame: 183, spread: 7517 },
+      3: { frame: 113, spread: 10120 },
+      4: { frame: 224, spread: 10111 },
     },
   },
   {
     id: 'realistic',
     label: 'Set Realistic Calculation',
     points: {
-      1: { frame: 103, spread: 7067 },
-      2: { frame: 220, spread: 6660 },
-      3: { frame: 145, spread: 10384 },
-      4: { frame: 264, spread: 8164 },
+      1: { frame: 53, spread: 7067 },
+      2: { frame: 170, spread: 6660 },
+      3: { frame: 95, spread: 10384 },
+      4: { frame: 214, spread: 8164 },
     },
   },
 ]
@@ -67,7 +68,7 @@ export function referenceFromPreset(
     if (!point) continue
     reference[cycle] = {
       spread: point.spread,
-      frame: point.frame,
+      frame: toRawFrame(point.frame),
       simIndex: null,
     }
   }
@@ -105,7 +106,7 @@ export function referenceMatchesPreset(
     const point = preset.points[cycle]
     if (!ref || !point) return false
     if (ref.simIndex != null) return false
-    if (Math.round(ref.frame) !== point.frame) return false
+    if (Math.round(toDisplayFrame(ref.frame)) !== point.frame) return false
     if (Math.round(ref.spread) !== point.spread) return false
   }
   return true
@@ -150,7 +151,7 @@ export function formatReferencePresetSnippet(
     .map((cycle) => {
       const ref = reference[cycle]
       if (!ref) return null
-      const frame = Math.round(ref.frame)
+      const frame = Math.round(toDisplayFrame(ref.frame))
       const spread = Math.round(ref.spread)
       return `      ${cycle}: { frame: ${frame}, spread: ${spread} },`
     })
