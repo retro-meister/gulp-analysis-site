@@ -1,74 +1,47 @@
-const DROP_SLOTS = [
-  { index: 1, x: 40960, y: 36864 },
-  { index: 2, x: 41574, y: 42189 },
-  { index: 3, x: 39844, y: 45394 },
-  { index: 4, x: 32768, y: 43008 },
-  { index: 5, x: 34816, y: 36864 },
-  { index: 6, x: 36741, y: 34621 },
-  { index: 7, x: 32061, y: 39567 },
-  { index: 8, x: 33997, y: 47104 },
-  { index: 9, x: 37274, y: 50022 },
-  { index: 10, x: 44298, y: 45517 },
-  { index: 11, x: 45414, y: 42506 },
-  { index: 12, x: 43868, y: 37540 },
-  { index: 13, x: 42660, y: 33536 },
-  { index: 14, x: 39055, y: 31805 },
-  { index: 15, x: 31805, y: 34826 },
-  { index: 16, x: 28928, y: 38574 },
-  { index: 17, x: 29327, y: 42516 },
-  { index: 18, x: 30536, y: 46930 },
-  { index: 19, x: 33628, y: 49060 },
-  { index: 20, x: 34673, y: 32317 },
-  { index: 21, x: 36864, y: 44237 },
-  { index: 22, x: 38502, y: 38912 },
-  { index: 23, x: 46080, y: 39885 },
-  { index: 24, x: 27935, y: 45394 },
-  { index: 25, x: 41288, y: 49551 },
-] as const
+import {
+  ARENA_SIZE,
+  arenaCircle,
+  BIRD_COLORS,
+  birdArrowPoints,
+  DROP_SLOTS,
+  VULTURE_MAP_MIN_Z,
+  worldToArena,
+  yawToWorldDir,
+} from './arenaProjection'
 
-const SIZE = 400
-const PAD = { top: 12, right: 4, bottom: 4, left: 4 }
-export const ARENA_DISPLAY_SIZE = SIZE
-
-const cx = DROP_SLOTS.reduce((sum, slot) => sum + slot.x, 0) / DROP_SLOTS.length
-const cy = DROP_SLOTS.reduce((sum, slot) => sum + slot.y, 0) / DROP_SLOTS.length
-const radius =
-  Math.max(...DROP_SLOTS.map((slot) => Math.hypot(slot.x - cx, slot.y - cy))) *
-  1.12
-const halfExtent = radius * 1.08
-const availW = SIZE - PAD.left - PAD.right
-const availH = SIZE - PAD.top - PAD.bottom
-const scale = Math.min(availW, availH) / (2 * halfExtent)
-const centerX = PAD.left + availW / 2
-const centerY = PAD.top + availH / 2
-
-function toSvg(wx: number, wy: number) {
-  return {
-    x: centerX + (wx - cx) * scale,
-    y: centerY - (wy - cy) * scale,
-  }
+export type BirdPose = {
+  bird: number
+  x: number
+  y: number
+  z: number
+  yaw: number
 }
 
-export function ArenaMap({ highlightedSlots }: { highlightedSlots: number[] }) {
+export function ArenaMap({
+  highlightedSlots,
+  birds = [],
+}: {
+  highlightedSlots: number[]
+  birds?: BirdPose[]
+}) {
   const highlighted = new Set(highlightedSlots)
-  const circleR = radius * scale
 
   return (
     <svg
-      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      viewBox={`0 0 ${ARENA_SIZE} ${ARENA_SIZE}`}
       className="block max-w-full shrink-0"
-      style={{ width: ARENA_DISPLAY_SIZE, height: ARENA_DISPLAY_SIZE }}
+      style={{ width: ARENA_SIZE, height: ARENA_SIZE }}
     >
       <circle
-        cx={centerX}
-        cy={centerY}
-        r={circleR}
+        cx={arenaCircle.cx}
+        cy={arenaCircle.cy}
+        r={arenaCircle.r}
         fill="none"
         stroke="#ffffff"
         strokeWidth={1.25}
       />
       {DROP_SLOTS.map((slot) => {
-        const { x, y } = toSvg(slot.x, slot.y)
+        const { x, y } = worldToArena(slot.x, slot.y)
         const active = highlighted.has(slot.index)
         return (
           <g key={slot.index}>
@@ -90,6 +63,21 @@ export function ArenaMap({ highlightedSlots }: { highlightedSlots: number[] }) {
               {slot.index}
             </text>
           </g>
+        )
+      })}
+      {birds.map((bird) => {
+        if (bird.z < VULTURE_MAP_MIN_Z) return null
+        const { x, y } = worldToArena(bird.x, bird.y)
+        const { dirX, dirY } = yawToWorldDir(bird.yaw)
+        const color = BIRD_COLORS[bird.bird] ?? '#ffffff'
+        return (
+          <polygon
+            key={bird.bird}
+            points={birdArrowPoints(x, y, dirX, dirY, 14)}
+            fill={color}
+            stroke="#ffffff"
+            strokeWidth={1}
+          />
         )
       })}
     </svg>

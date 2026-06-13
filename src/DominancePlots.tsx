@@ -6,7 +6,7 @@ import {
   rowDropSlots,
   statsForReference,
 } from './db'
-import { ArenaMap } from './ArenaMap'
+import { TrajectoryPlayback } from './TrajectoryPlayback'
 
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
 const W = 400
@@ -838,7 +838,10 @@ function CyclePanel({
         onResetReference={onResetReference}
         referenceIsWr={reference.simIndex === wr.sim_index}
       />
-      <ArenaMap highlightedSlots={rowDropSlots(selected)} />
+      <TrajectoryPlayback
+        simIndex={selected.sim_index}
+        highlightedSlots={rowDropSlots(selected)}
+      />
     </div>
   )
 }

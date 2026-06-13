@@ -104,7 +104,22 @@ export type DominanceData = {
   stats: DominanceStats[]
 }
 
+export type TrajectoryBird = {
+  bird: number
+  x: number
+  y: number
+  z: number
+  yaw: number
+}
+
+export type TrajectoryData = {
+  maxFrame: number
+  frames: Map<number, TrajectoryBird[]>
+}
+
 let dbPromise: Promise<duckdb.AsyncDuckDB> | null = null
+let trajectoriesReady: Promise<void> | null = null
+const trajectoryCache = new Map<number, TrajectoryData>()
 
 function assetUrl(path: string) {
   return new URL(path, window.location.origin).href
@@ -167,6 +182,59 @@ export async function loadDominanceData(): Promise<DominanceData> {
         pct_dominated: Number(row.pct_dominated),
       })),
     }
+  } finally {
+    await conn.close()
+  }
+}
+
+async function ensureTrajectoriesLoaded() {
+  if (!trajectoriesReady) {
+    trajectoriesReady = (async () => {
+      const db = await getDb()
+      const res = await fetch('/gulp_trajectories.parquet')
+      if (!res.ok) throw new Error('Failed to load gulp_trajectories.parquet')
+      const buffer = new Uint8Array(await res.arrayBuffer())
+      await db.registerFileBuffer('gulp_trajectories.parquet', buffer)
+    })()
+  }
+  await trajectoriesReady
+}
+
+export async function loadTrajectory(simIndex: number): Promise<TrajectoryData> {
+  const cached = trajectoryCache.get(simIndex)
+  if (cached) return cached
+
+  await ensureTrajectoriesLoaded()
+  const db = await getDb()
+  const conn = await db.connect()
+
+  try {
+    const result = await conn.query(
+      `SELECT frame, bird, x, y, z, yaw
+       FROM read_parquet('gulp_trajectories.parquet')
+       WHERE sim_index = ${simIndex}
+       ORDER BY frame, bird`,
+    )
+
+    const frames = new Map<number, TrajectoryBird[]>()
+    let maxFrame = 0
+    for (const row of result.toArray()) {
+      const frame = Number(row.frame)
+      maxFrame = Math.max(maxFrame, frame)
+      const birds = frames.get(frame) ?? []
+      birds.push({
+        bird: Number(row.bird),
+        x: Number(row.x),
+        y: Number(row.y),
+        z: Number(row.z),
+        yaw: Number(row.yaw),
+      })
+      frames.set(frame, birds)
+    }
+
+    const data: TrajectoryData = { maxFrame, frames }
+    trajectoryCache.set(simIndex, data)
+    return data
   } finally {
     await conn.close()
   }

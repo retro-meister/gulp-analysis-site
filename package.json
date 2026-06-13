@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:trajectories": "sh scripts/build-trajectories-parquet.sh",
     "lint": "eslint .",
     "preview": "vite preview"
   },
