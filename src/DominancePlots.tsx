@@ -12,7 +12,7 @@ import { formatDisplayFrame } from './cycleFrames'
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
 const W = 400
 const H = 400
-const LATE_CYCLE_CHANCE_PCT = 40.19
+const LATE_CYCLE_CHANCE_PCT = 38.63
 
 type PlotPoint = {
   sim_index: number
