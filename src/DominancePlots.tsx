@@ -242,25 +242,17 @@ function combinedDominatorChance(inputs: CycleOddsInput[]): {
   oneInX: string
 } {
   let product = 1
-  let lateCycleProduct = 1
-  let hasLateCycles = false
 
   for (const input of inputs) {
-    const p = cycleHitProbability(
+    let p = cycleHitProbability(
       input.stats,
       input.totalPermutations,
       input.hasSpecificAssignment,
     )
     if (input.cycle >= 3) {
-      lateCycleProduct *= p
-      hasLateCycles = true
-    } else {
-      product *= p
+      p /= 2
     }
-  }
-
-  if (hasLateCycles) {
-    product *= lateCycleProduct / 2
+    product *= p
   }
 
   const pct = product * 100
@@ -271,31 +263,19 @@ function combinedDominatorChance(inputs: CycleOddsInput[]): {
 }
 
 function formatCombinedOddsExpression(inputs: CycleOddsInput[]): string {
-  const early = inputs.filter((input) => input.cycle < 3)
-  const late = inputs.filter((input) => input.cycle >= 3)
-  const earlyParts = early.map((input) =>
-    formatCycleOddsFactor(
-      input.stats,
-      input.totalPermutations,
-      input.hasSpecificAssignment,
-    ),
-  )
-
-  if (late.length === 0) return earlyParts.join(' × ')
-
-  const lateParts = late.map((input) =>
-    formatCycleOddsFactor(
-      input.stats,
-      input.totalPermutations,
-      input.hasSpecificAssignment,
-    ),
-  )
-  const lateGroup =
-    lateParts.length > 1
-      ? `((${lateParts.join(' × ')}) × 1/2)`
-      : `(${lateParts[0]} × 1/2)`
-
-  return [...earlyParts, lateGroup].join(' × ')
+  return inputs
+    .map((input) => {
+      const factor = formatCycleOddsFactor(
+        input.stats,
+        input.totalPermutations,
+        input.hasSpecificAssignment,
+      )
+      if (input.cycle >= 3) {
+        return `(${factor} × 1/2)`
+      }
+      return factor
+    })
+    .join(' × ')
 }
 
 type ViewMode = '2d' | '1d'
