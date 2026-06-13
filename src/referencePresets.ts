@@ -25,6 +25,16 @@ export const referencePresets: ReferencePreset[] = [
       4: { frame: 285, spread: 10100 },
     },
   },
+  // {
+  //   id: 'extremely-generous-alt',
+  //   label: 'Set Laughably Generous Calculation',
+  //   points: {
+  //     1: { frame: 118, spread: 7916 },
+  //     2: { frame: 235, spread: 10092 },
+  //     3: { frame: 168, spread: 11067 },
+  //     4: { frame: 285, spread: 10100 },
+  //   },
+  // },
   {
     id: 'generous',
     label: 'Set Generous Calculation',
