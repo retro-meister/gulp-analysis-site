@@ -1,6 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm'
 import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
 import Worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?worker'
+import { loadAssetBytes, loadTotalBytes } from 'virtual:load-sizes'
 
 export type Zone = 'dominator' | 'tradeoff' | 'dominated' | 'wr'
 
@@ -160,19 +161,27 @@ export type LoadProgress = {
 
 class LoadTracker {
   private completedBytes = 0
-  private expectedTotal = 0
-  private knownTotals = new Set<string>()
   private onProgress?: (progress: LoadProgress) => void
 
   constructor(onProgress?: (progress: LoadProgress) => void) {
     this.onProgress = onProgress
+    if (onProgress) {
+      onProgress({
+        phase: 'duckdb',
+        label: 'Loading DuckDB engine…',
+        loaded: 0,
+        total: loadAssetBytes.duckdb,
+        overallLoaded: 0,
+        overallTotal: loadTotalBytes,
+      })
+    }
   }
 
   private emit(
     phase: LoadProgress['phase'],
     label: string,
     loaded: number,
-    total: number | null,
+    total: number,
     fileLoaded: number,
   ) {
     this.onProgress?.({
@@ -181,36 +190,28 @@ class LoadTracker {
       loaded,
       total,
       overallLoaded: this.completedBytes + fileLoaded,
-      overallTotal: this.knownTotals.size > 0 ? this.expectedTotal : null,
+      overallTotal: loadTotalBytes,
     })
   }
 
   startPhase(phase: LoadProgress['phase'], label: string) {
-    this.emit(phase, label, 0, null, 0)
+    this.emit(phase, label, 0, loadTotalBytes, 0)
   }
 
   async fetchBytes(
     url: string,
     phase: LoadProgress['phase'],
     label: string,
+    knownSize: number,
   ): Promise<Uint8Array> {
     const resolved = new URL(url, window.location.origin).href
     const res = await fetch(resolved)
     if (!res.ok) throw new Error(`Failed to load ${url}`)
 
-    const total = res.headers.get('content-length')
-      ? Number(res.headers.get('content-length'))
-      : null
-
-    if (total != null && !this.knownTotals.has(resolved)) {
-      this.knownTotals.add(resolved)
-      this.expectedTotal += total
-    }
-
     if (!res.body || !this.onProgress) {
       const buffer = new Uint8Array(await res.arrayBuffer())
       this.completedBytes += buffer.byteLength
-      this.emit(phase, label, buffer.byteLength, total ?? buffer.byteLength, 0)
+      this.emit(phase, label, buffer.byteLength, knownSize, 0)
       return buffer
     }
 
@@ -223,7 +224,7 @@ class LoadTracker {
       if (done) break
       chunks.push(value)
       loaded += value.length
-      this.emit(phase, label, loaded, total, loaded)
+      this.emit(phase, label, loaded, knownSize, loaded)
     }
 
     const buffer = new Uint8Array(loaded)
@@ -234,7 +235,7 @@ class LoadTracker {
     }
 
     this.completedBytes += loaded
-    this.emit(phase, label, loaded, total ?? loaded, 0)
+    this.emit(phase, label, loaded, knownSize, 0)
     return buffer
   }
 }
@@ -250,6 +251,7 @@ async function createDb(tracker?: LoadTracker): Promise<duckdb.AsyncDuckDB> {
     duckdb_wasm,
     'duckdb',
     'Loading DuckDB engine…',
+    loadAssetBytes.duckdb,
   ) ?? fetch(duckdb_wasm).then(async (res) => {
     if (!res.ok) throw new Error('Failed to load DuckDB WASM')
     return new Uint8Array(await res.arrayBuffer())
@@ -290,6 +292,7 @@ export async function loadDominanceData(
       '/gulp_sweep.csv',
       'sweep',
       'Loading sweep data…',
+      loadAssetBytes.sweep,
     )
     await db.registerFileBuffer('gulp_sweep.csv', sweepBuffer)
 
@@ -299,6 +302,7 @@ export async function loadDominanceData(
           '/gulp_trajectories.parquet',
           'trajectories',
           'Loading trajectory data…',
+          loadAssetBytes.trajectories,
         )
         await db.registerFileBuffer('gulp_trajectories.parquet', parquetBuffer)
       })()

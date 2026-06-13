@@ -1,17 +1,18 @@
 import type { LoadProgress } from './db'
+import { loadTotalBytes } from 'virtual:load-sizes'
 
 function formatMb(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export function LoadingScreen({ progress }: { progress: LoadProgress | null }) {
-  const overallTotal = progress?.overallTotal ?? null
+  const overallTotal = progress?.overallTotal ?? loadTotalBytes
   const overallLoaded = progress?.overallLoaded ?? 0
   const pct =
-    overallTotal != null && overallTotal > 0
+    overallTotal > 0
       ? Math.min(100, Math.round((100 * overallLoaded) / overallTotal))
-      : null
-  const indeterminate = progress?.phase === 'queries' || pct == null
+      : 0
+  const indeterminate = progress?.phase === 'queries'
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center px-4">
@@ -29,21 +30,20 @@ export function LoadingScreen({ progress }: { progress: LoadProgress | null }) {
           <div className="h-2.5 overflow-hidden rounded-full bg-gray-800">
             <div
               className={`h-full rounded-full bg-[#27ae60] ${
-                indeterminate ? 'w-2/5 animate-pulse' : 'transition-[width] duration-150'
+                indeterminate ? 'animate-pulse' : 'transition-[width] duration-150'
               }`}
-              style={indeterminate ? undefined : { width: `${pct}%` }}
+              style={{ width: `${pct}%` }}
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500">
             <span>
-              {formatMb(overallLoaded)}
-              {overallTotal != null ? ` / ${formatMb(overallTotal)}` : ' downloaded'}
+              {formatMb(overallLoaded)} / {formatMb(overallTotal)}
             </span>
-            {!indeterminate && pct != null && <span>{pct}%</span>}
-            {indeterminate && progress?.phase !== 'queries' && (
-              <span>Calculating size…</span>
+            {progress?.phase === 'queries' ? (
+              <span>Almost ready</span>
+            ) : (
+              <span>{pct}%</span>
             )}
-            {progress?.phase === 'queries' && <span>Almost ready</span>}
           </div>
         </div>
       </div>

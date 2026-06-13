@@ -728,6 +728,51 @@ function CyclePanel({
             </g>
           ))}
 
+          {reference.spread >= viewport.xMin &&
+            reference.spread <= viewport.xMax && (
+              <g>
+                <line
+                  x1={x(reference.spread)}
+                  x2={x(reference.spread)}
+                  y1={plotBottom}
+                  y2={plotBottom + 6}
+                  stroke="#aaaaaa"
+                  strokeWidth={1.25}
+                />
+                <text
+                  x={x(reference.spread)}
+                  y={plotBottom + 16}
+                  textAnchor="middle"
+                  className="fill-gray-300 text-[8px] font-medium"
+                >
+                  {formatTick(reference.spread)}
+                </text>
+              </g>
+            )}
+
+          {reference.frame >= viewport.yMin &&
+            reference.frame <= viewport.yMax && (
+              <g>
+                <line
+                  x1={plotLeft - 6}
+                  x2={plotLeft}
+                  y1={y(reference.frame)}
+                  y2={y(reference.frame)}
+                  stroke="#aaaaaa"
+                  strokeWidth={1.25}
+                />
+                <text
+                  x={plotLeft - 10}
+                  y={y(reference.frame)}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                  className="fill-gray-300 text-[8px] font-medium"
+                >
+                  {formatTick(reference.frame)}
+                </text>
+              </g>
+            )}
+
           {!dense && (
             <ScatterSvg
               points={points}
