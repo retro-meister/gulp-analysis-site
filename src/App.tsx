@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { DominancePlots } from './DominancePlots'
-import { loadDominanceData, type DominanceData } from './db'
+import { loadDominanceData, type DominanceData, type LoadProgress } from './db'
+import { LoadingScreen } from './LoadingScreen'
 
 function App() {
   const [data, setData] = useState<DominanceData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState<LoadProgress | null>(null)
 
   useEffect(() => {
-    loadDominanceData()
+    loadDominanceData(setProgress)
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : 'Load failed'))
   }, [])
@@ -17,7 +19,7 @@ function App() {
   }
 
   if (!data) {
-    return <p className="text-center text-gray-400">Loading…</p>
+    return <LoadingScreen progress={progress} />
   }
 
   return (

@@ -149,22 +149,125 @@ export type TrajectoryData = {
   frames: Map<number, TrajectoryBird[]>
 }
 
+export type LoadProgress = {
+  phase: 'duckdb' | 'sweep' | 'trajectories' | 'queries'
+  label: string
+  loaded: number
+  total: number | null
+  overallLoaded: number
+  overallTotal: number | null
+}
+
+class LoadTracker {
+  private completedBytes = 0
+  private expectedTotal = 0
+  private knownTotals = new Set<string>()
+  private onProgress?: (progress: LoadProgress) => void
+
+  constructor(onProgress?: (progress: LoadProgress) => void) {
+    this.onProgress = onProgress
+  }
+
+  private emit(
+    phase: LoadProgress['phase'],
+    label: string,
+    loaded: number,
+    total: number | null,
+    fileLoaded: number,
+  ) {
+    this.onProgress?.({
+      phase,
+      label,
+      loaded,
+      total,
+      overallLoaded: this.completedBytes + fileLoaded,
+      overallTotal: this.knownTotals.size > 0 ? this.expectedTotal : null,
+    })
+  }
+
+  startPhase(phase: LoadProgress['phase'], label: string) {
+    this.emit(phase, label, 0, null, 0)
+  }
+
+  async fetchBytes(
+    url: string,
+    phase: LoadProgress['phase'],
+    label: string,
+  ): Promise<Uint8Array> {
+    const resolved = new URL(url, window.location.origin).href
+    const res = await fetch(resolved)
+    if (!res.ok) throw new Error(`Failed to load ${url}`)
+
+    const total = res.headers.get('content-length')
+      ? Number(res.headers.get('content-length'))
+      : null
+
+    if (total != null && !this.knownTotals.has(resolved)) {
+      this.knownTotals.add(resolved)
+      this.expectedTotal += total
+    }
+
+    if (!res.body || !this.onProgress) {
+      const buffer = new Uint8Array(await res.arrayBuffer())
+      this.completedBytes += buffer.byteLength
+      this.emit(phase, label, buffer.byteLength, total ?? buffer.byteLength, 0)
+      return buffer
+    }
+
+    const reader = res.body.getReader()
+    const chunks: Uint8Array[] = []
+    let loaded = 0
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      loaded += value.length
+      this.emit(phase, label, loaded, total, loaded)
+    }
+
+    const buffer = new Uint8Array(loaded)
+    let offset = 0
+    for (const chunk of chunks) {
+      buffer.set(chunk, offset)
+      offset += chunk.length
+    }
+
+    this.completedBytes += loaded
+    this.emit(phase, label, loaded, total ?? loaded, 0)
+    return buffer
+  }
+}
+
 let dbPromise: Promise<duckdb.AsyncDuckDB> | null = null
 let trajectoriesReady: Promise<void> | null = null
 const trajectoryCache = new Map<number, TrajectoryData>()
 
-function assetUrl(path: string) {
-  return new URL(path, window.location.origin).href
+async function createDb(tracker?: LoadTracker): Promise<duckdb.AsyncDuckDB> {
+  const logger = new duckdb.ConsoleLogger()
+  const db = new duckdb.AsyncDuckDB(logger, new Worker())
+  const wasm = await (tracker?.fetchBytes(
+    duckdb_wasm,
+    'duckdb',
+    'Loading DuckDB engine…',
+  ) ?? fetch(duckdb_wasm).then(async (res) => {
+    if (!res.ok) throw new Error('Failed to load DuckDB WASM')
+    return new Uint8Array(await res.arrayBuffer())
+  }))
+  const wasmUrl = URL.createObjectURL(
+    new Blob([Uint8Array.from(wasm)], { type: 'application/wasm' }),
+  )
+  try {
+    await db.instantiate(wasmUrl)
+  } finally {
+    URL.revokeObjectURL(wasmUrl)
+  }
+  return db
 }
 
-async function getDb() {
+async function getDb(tracker?: LoadTracker) {
   if (!dbPromise) {
-    dbPromise = (async () => {
-      const logger = new duckdb.ConsoleLogger()
-      const db = new duckdb.AsyncDuckDB(logger, new Worker())
-      await db.instantiate(assetUrl(duckdb_wasm))
-      return db
-    })()
+    dbPromise = createDb(tracker)
   }
   return dbPromise
 }
@@ -175,15 +278,34 @@ async function fetchSql(path: string) {
   return res.text()
 }
 
-export async function loadDominanceData(): Promise<DominanceData> {
-  const db = await getDb()
+export async function loadDominanceData(
+  onProgress?: (progress: LoadProgress) => void,
+): Promise<DominanceData> {
+  const tracker = new LoadTracker(onProgress)
+  const db = await getDb(tracker)
   const conn = await db.connect()
 
   try {
-    const csv = await fetch('/gulp_sweep.csv')
-    if (!csv.ok) throw new Error('Failed to load gulp_sweep.csv')
-    const buffer = new Uint8Array(await csv.arrayBuffer())
-    await db.registerFileBuffer('gulp_sweep.csv', buffer)
+    const sweepBuffer = await tracker.fetchBytes(
+      '/gulp_sweep.csv',
+      'sweep',
+      'Loading sweep data…',
+    )
+    await db.registerFileBuffer('gulp_sweep.csv', sweepBuffer)
+
+    if (!trajectoriesReady) {
+      trajectoriesReady = (async () => {
+        const parquetBuffer = await tracker.fetchBytes(
+          '/gulp_trajectories.parquet',
+          'trajectories',
+          'Loading trajectory data…',
+        )
+        await db.registerFileBuffer('gulp_trajectories.parquet', parquetBuffer)
+      })()
+    }
+    await trajectoriesReady
+
+    tracker.startPhase('queries', 'Analyzing data…')
 
     await conn.query(await fetchSql('/sql/load.sql'))
 
