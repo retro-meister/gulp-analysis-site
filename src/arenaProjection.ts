@@ -51,7 +51,7 @@ export function worldToArena(wx: number, wy: number) {
 
 export const arenaCircle = { cx: centerX, cy: centerY, r: circleR }
 
-export const BIRD_COLORS = ['#f0ad4e', '#5bc0de', '#e74c3c'] as const
+export const BIRD_COLORS = ['#c0392b', '#1a3a6b', '#27ae60'] as const
 
 export const VULTURE_MAP_MIN_Z = 20000
 const SIN_TABLE_SCALE = 4096

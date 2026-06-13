@@ -12,8 +12,40 @@ export type DominanceRow = {
   bird0_drop: number
   bird1_drop: number
   bird2_drop: number | null
+  bird0_egg_spawn_frame: number | null
+  bird1_egg_spawn_frame: number | null
+  bird2_egg_spawn_frame: number | null
   is_wr: boolean
   zone: Zone
+}
+
+export type BirdAssignment = {
+  bird: number
+  slot: number
+  eggSpawnFrame: number | null
+}
+
+export function rowBirdAssignments(row: DominanceRow): BirdAssignment[] {
+  const assignments: BirdAssignment[] = [
+    {
+      bird: 0,
+      slot: row.bird0_drop,
+      eggSpawnFrame: row.bird0_egg_spawn_frame,
+    },
+    {
+      bird: 1,
+      slot: row.bird1_drop,
+      eggSpawnFrame: row.bird1_egg_spawn_frame,
+    },
+  ]
+  if (row.bird2_drop != null) {
+    assignments.push({
+      bird: 2,
+      slot: row.bird2_drop,
+      eggSpawnFrame: row.bird2_egg_spawn_frame,
+    })
+  }
+  return assignments
 }
 
 export function rowDropSlots(row: DominanceRow): number[] {
@@ -168,6 +200,18 @@ export async function loadDominanceData(): Promise<DominanceData> {
         bird1_drop: Number(row.bird1_drop),
         bird2_drop:
           row.bird2_drop == null ? null : Number(row.bird2_drop),
+        bird0_egg_spawn_frame:
+          row.bird0_egg_spawn_frame == null
+            ? null
+            : Number(row.bird0_egg_spawn_frame),
+        bird1_egg_spawn_frame:
+          row.bird1_egg_spawn_frame == null
+            ? null
+            : Number(row.bird1_egg_spawn_frame),
+        bird2_egg_spawn_frame:
+          row.bird2_egg_spawn_frame == null
+            ? null
+            : Number(row.bird2_egg_spawn_frame),
         is_wr: Boolean(row.is_wr),
         zone: row.zone as Zone,
       })),

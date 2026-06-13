@@ -8,6 +8,7 @@ import {
   worldToArena,
   yawToWorldDir,
 } from './arenaProjection'
+import type { BirdAssignment } from './db'
 
 export type BirdPose = {
   bird: number
@@ -17,14 +18,20 @@ export type BirdPose = {
   yaw: number
 }
 
+const DEFAULT_SLOT_FILL = '#5bc0de'
+
 export function ArenaMap({
-  highlightedSlots,
+  birdAssignments = [],
+  playbackFrame,
   birds = [],
 }: {
-  highlightedSlots: number[]
+  birdAssignments?: BirdAssignment[]
+  playbackFrame?: number
   birds?: BirdPose[]
 }) {
-  const highlighted = new Set(highlightedSlots)
+  const assignmentBySlot = new Map(
+    birdAssignments.map((a) => [a.slot, a]),
+  )
 
   return (
     <svg
@@ -42,16 +49,21 @@ export function ArenaMap({
       />
       {DROP_SLOTS.map((slot) => {
         const { x, y } = worldToArena(slot.x, slot.y)
-        const active = highlighted.has(slot.index)
+        const assignment = assignmentBySlot.get(slot.index)
+        const color = assignment ? BIRD_COLORS[assignment.bird] : DEFAULT_SLOT_FILL
+        const dropped =
+          playbackFrame != null &&
+          assignment?.eggSpawnFrame != null &&
+          playbackFrame >= assignment.eggSpawnFrame
         return (
           <g key={slot.index}>
             <circle
               cx={x}
               cy={y}
               r={7}
-              fill={active ? '#f0ad4e' : '#5bc0de'}
-              stroke={active ? '#ffffff' : 'none'}
-              strokeWidth={active ? 2 : 0}
+              fill={color}
+              stroke={dropped ? '#000000' : assignment ? '#ffffff' : 'none'}
+              strokeWidth={dropped ? 3 : assignment ? 2 : 0}
             />
             <text
               x={x}

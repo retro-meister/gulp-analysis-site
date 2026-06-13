@@ -34,6 +34,9 @@ classified AS (
         s.bird0_drop,
         s.bird1_drop,
         s.bird2_drop,
+        s.bird0_egg_spawn_frame,
+        s.bird1_egg_spawn_frame,
+        s.bird2_egg_spawn_frame,
         s.is_wr,
         CASE
             WHEN s.is_wr THEN 'wr'
@@ -52,6 +55,9 @@ SELECT
     bird0_drop,
     bird1_drop,
     bird2_drop,
+    bird0_egg_spawn_frame,
+    bird1_egg_spawn_frame,
+    bird2_egg_spawn_frame,
     is_wr,
     zone
 FROM classified

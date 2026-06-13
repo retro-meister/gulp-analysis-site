@@ -3,7 +3,6 @@ import type { DominanceRow, DominanceStats, ReferencePoint, Zone } from './db'
 import {
   classifyZone,
   findRowByDrops,
-  rowDropSlots,
   statsForReference,
 } from './db'
 import { TrajectoryPlayback } from './TrajectoryPlayback'
@@ -454,6 +453,8 @@ function CyclePanel({
   rows,
   selectedSimIndex,
   reference,
+  keyboardActive,
+  onActivate,
   onSelect,
   onSetReference,
   onResetReference,
@@ -462,6 +463,8 @@ function CyclePanel({
   rows: DominanceRow[]
   selectedSimIndex: number
   reference: ReferencePoint
+  keyboardActive: boolean
+  onActivate: () => void
   onSelect: (simIndex: number) => void
   onSetReference: (reference: ReferencePoint) => void
   onResetReference: () => void
@@ -840,7 +843,9 @@ function CyclePanel({
       />
       <TrajectoryPlayback
         simIndex={selected.sim_index}
-        highlightedSlots={rowDropSlots(selected)}
+        selected={selected}
+        keyboardActive={keyboardActive}
+        onActivate={onActivate}
       />
     </div>
   )
@@ -881,6 +886,7 @@ export function DominancePlots({
     return sel
   })
   const [reference, setReference] = useState(() => defaultWrReference(rows, cycles))
+  const [activeCycle, setActiveCycle] = useState(() => cycles[0] ?? 1)
 
   const rowsByCycle = useMemo(() => {
     const map = new Map<number, DominanceRow[]>()
@@ -894,6 +900,7 @@ export function DominancePlots({
   }, [rows, cycles])
 
   const handleSelect = useCallback((cycle: number, simIndex: number) => {
+    setActiveCycle(cycle)
     setSelected((prev) => ({ ...prev, [cycle]: simIndex }))
   }, [])
 
@@ -918,18 +925,22 @@ export function DominancePlots({
   )
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      {cycles.map((cycle) => (
-        <CyclePanel
-          key={cycle}
-          cycle={cycle}
-          rows={rowsByCycle.get(cycle)!}
-          selectedSimIndex={selected[cycle]}
-          reference={reference[cycle]}
-          onSelect={(simIndex) => handleSelect(cycle, simIndex)}
-          onSetReference={(ref) => handleSetReference(cycle, ref)}
-          onResetReference={() => handleResetReference(cycle)}
-        />
+    <div className="flex flex-col items-center">
+      {cycles.map((cycle, i) => (
+        <div key={cycle} className="flex w-full flex-col items-center">
+          {i > 0 && <div className="my-6 h-px w-full bg-gray-600" />}
+          <CyclePanel
+            cycle={cycle}
+            rows={rowsByCycle.get(cycle)!}
+            selectedSimIndex={selected[cycle]}
+            reference={reference[cycle]}
+            keyboardActive={activeCycle === cycle}
+            onActivate={() => setActiveCycle(cycle)}
+            onSelect={(simIndex) => handleSelect(cycle, simIndex)}
+            onSetReference={(ref) => handleSetReference(cycle, ref)}
+            onResetReference={() => handleResetReference(cycle)}
+          />
+        </div>
       ))}
     </div>
   )
