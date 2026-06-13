@@ -300,6 +300,73 @@ function parseDropSlot(value: string): number | null {
   return n
 }
 
+function wrapDropSlot(n: number, delta: number): number {
+  return ((n - 1 + delta + 25) % 25) + 1
+}
+
+function dropSlotStep(value: string, delta: number): string {
+  const parsed = parseDropSlot(value)
+  const base = parsed ?? (delta > 0 ? 25 : 1)
+  return String(wrapDropSlot(base, delta))
+}
+
+function DropSlotInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (next: string) => void
+}) {
+  const mouseDownValue = useRef<string | null>(null)
+  const inputClass =
+    'w-11 rounded border border-gray-600 bg-gray-900 px-1.5 py-0.5 text-center text-xs text-gray-100'
+
+  const step = (delta: number) => {
+    onChange(dropSlotStep(value, delta))
+  }
+
+  return (
+    <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
+      {label}
+      <input
+        type="number"
+        min={1}
+        max={25}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            step(1)
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            step(-1)
+          }
+        }}
+        onMouseDown={() => {
+          mouseDownValue.current = value
+        }}
+        onMouseUp={(e) => {
+          const input = e.currentTarget
+          const rect = input.getBoundingClientRect()
+          if (e.clientX < rect.right - 18) return
+
+          const delta = e.clientY - rect.top < rect.height / 2 ? 1 : -1
+          const before = mouseDownValue.current
+
+          requestAnimationFrame(() => {
+            if (before == null || input.value !== before) return
+            onChange(dropSlotStep(before, delta))
+          })
+        }}
+        className={inputClass}
+      />
+    </label>
+  )
+}
+
 function DropLookup({
   cycle,
   rows,
@@ -323,6 +390,20 @@ function DropLookup({
   const [bird2, setBird2] = useState(
     selected.bird2_drop != null ? String(selected.bird2_drop) : '',
   )
+  const [prevSimIndex, setPrevSimIndex] = useState(selected.sim_index)
+  const [pendingLookupSim, setPendingLookupSim] = useState<number | null>(null)
+
+  if (selected.sim_index !== prevSimIndex) {
+    setPrevSimIndex(selected.sim_index)
+    if (pendingLookupSim !== selected.sim_index) {
+      setBird0(String(selected.bird0_drop))
+      setBird1(String(selected.bird1_drop))
+      setBird2(selected.bird2_drop != null ? String(selected.bird2_drop) : '')
+    }
+    if (pendingLookupSim != null) {
+      setPendingLookupSim(null)
+    }
+  }
 
   const tryLookup = (nextBird0: string, nextBird1: string, nextBird2: string) => {
     const b0 = parseDropSlot(nextBird0)
@@ -336,61 +417,38 @@ function DropLookup({
     const row = findRowByDrops(rows, b0, b1, b2)
     if (!row) return
 
+    setPendingLookupSim(row.sim_index)
     onSelect(row.sim_index)
   }
-
-  const inputClass =
-    'w-11 rounded border border-gray-600 bg-gray-900 px-1.5 py-0.5 text-center text-xs text-gray-100'
 
   return (
     <div className="flex shrink-0 flex-col items-center gap-1.5">
       <div className="flex flex-col items-center gap-1.5">
-        <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
-          Bird 0
-          <input
-            type="number"
-            min={1}
-            max={25}
-            value={bird0}
-            onChange={(e) => {
-              const next = e.target.value
-              setBird0(next)
-              tryLookup(next, bird1, bird2)
-            }}
-            className={inputClass}
-          />
-        </label>
-        <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
-          Bird 1
-          <input
-            type="number"
-            min={1}
-            max={25}
-            value={bird1}
-            onChange={(e) => {
-              const next = e.target.value
-              setBird1(next)
-              tryLookup(bird0, next, bird2)
-            }}
-            className={inputClass}
-          />
-        </label>
+        <DropSlotInput
+          label="Bird 0"
+          value={bird0}
+          onChange={(next) => {
+            setBird0(next)
+            tryLookup(next, bird1, bird2)
+          }}
+        />
+        <DropSlotInput
+          label="Bird 1"
+          value={bird1}
+          onChange={(next) => {
+            setBird1(next)
+            tryLookup(bird0, next, bird2)
+          }}
+        />
         {threeBird && (
-          <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
-            Bird 2
-            <input
-              type="number"
-              min={1}
-              max={25}
-              value={bird2}
-              onChange={(e) => {
-                const next = e.target.value
-                setBird2(next)
-                tryLookup(bird0, bird1, next)
-              }}
-              className={inputClass}
-            />
-          </label>
+          <DropSlotInput
+            label="Bird 2"
+            value={bird2}
+            onChange={(next) => {
+              setBird2(next)
+              tryLookup(bird0, bird1, next)
+            }}
+          />
         )}
       </div>
       <div className="flex flex-col items-center gap-1">
@@ -1180,7 +1238,6 @@ function CyclePanel({
         </svg>
       </div>
       <DropLookup
-        key={selected.sim_index}
         cycle={cycle}
         rows={rows}
         selected={selected}
