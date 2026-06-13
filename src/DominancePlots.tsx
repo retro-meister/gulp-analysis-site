@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState, useEffect } from 'react'
+import { memo, useCallback, useMemo, useRef, useState, useEffect, Fragment } from 'react'
 import type { DominanceRow, DominanceStats, ReferencePoint, Zone } from './db'
 import {
   classifyZone,
@@ -6,7 +6,7 @@ import {
   statsForReference,
 } from './db'
 import { TrajectoryPlayback } from './TrajectoryPlayback'
-import { referenceFromPreset, referencePresets, wrCalculationLabel } from './referencePresets'
+import { referenceFromPreset, referencePresets, wrCalculationLabel, formatReferencePresetSnippet, defaultReference, getActiveCalculationId } from './referencePresets'
 
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
 const W = 400
@@ -1428,8 +1428,41 @@ export function DominancePlots({
     }
     return sel
   })
-  const [reference, setReference] = useState(() => defaultWrReference(rows, cycles))
+  const [reference, setReference] = useState(() => defaultReference(rows, cycles))
   const [activeCycle, setActiveCycle] = useState(() => cycles[0] ?? 1)
+
+  const activeCalculation = useMemo(
+    () => getActiveCalculationId(reference, rows, cycles),
+    [reference, rows, cycles],
+  )
+
+  const calculationButtonClass = (active: boolean) =>
+    `rounded border px-3 py-1 text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-gray-400 ${
+      active
+        ? 'border-gray-400 bg-gray-600 text-gray-50'
+        : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
+    }`
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'p' && e.key !== 'P') return
+      if (!e.shiftKey || !(e.metaKey || e.ctrlKey)) return
+      const target = e.target
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        return
+      }
+      e.preventDefault()
+      const snippet = formatReferencePresetSnippet(cycles, reference)
+      void navigator.clipboard.writeText(snippet)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [cycles, reference])
 
   const rowsByCycle = useMemo(() => {
     const map = new Map<number, DominanceRow[]>()
@@ -1512,24 +1545,41 @@ export function DominancePlots({
 
   return (
     <div className="flex flex-col items-center">
-      <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
-        <button
-          type="button"
-          onClick={handleSetWrCalculation}
-          className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-[11px] text-gray-200 hover:bg-gray-700"
-        >
-          {wrCalculationLabel}
-        </button>
-        {referencePresets.map((preset) => (
+      <div className="mb-6 flex flex-wrap items-center justify-center gap-y-2">
+        {referencePresets.map((preset, i) => (
+          <Fragment key={preset.id}>
+            {i > 0 && (
+              <div
+                className="mx-2 h-4 w-px shrink-0 bg-gray-600"
+                aria-hidden
+              />
+            )}
             <button
-              key={preset.id}
               type="button"
-              onClick={() => handleApplyPreset(preset.id)}
-              className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-[11px] text-gray-200 hover:bg-gray-700"
+              onClick={(e) => {
+                handleApplyPreset(preset.id)
+                e.currentTarget.blur()
+              }}
+              className={calculationButtonClass(activeCalculation === preset.id)}
             >
               {preset.label}
             </button>
-          ))}
+          </Fragment>
+        ))}
+        <div
+          className="mx-2 h-4 w-px shrink-0 bg-gray-600"
+          aria-hidden
+        />
+        <button
+          type="button"
+          onClick={(e) => {
+            handleSetWrCalculation()
+            e.currentTarget.blur()
+          }}
+          className={calculationButtonClass(activeCalculation === 'wr')}
+        >
+          {wrCalculationLabel}
+        </button>
       </div>
       {cycles.map((cycle, i) => (
         <div key={cycle} className="flex w-full flex-col items-center">
