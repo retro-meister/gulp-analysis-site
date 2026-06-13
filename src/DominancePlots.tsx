@@ -190,6 +190,7 @@ function DropLookup({
   rows,
   selected,
   onSelect,
+  onSetReference,
   onResetReference,
   referenceIsWr,
 }: {
@@ -197,6 +198,7 @@ function DropLookup({
   rows: DominanceRow[]
   selected: DominanceRow
   onSelect: (simIndex: number) => void
+  onSetReference: () => void
   onResetReference: () => void
   referenceIsWr: boolean
 }) {
@@ -283,6 +285,13 @@ function DropLookup({
         )}
       </div>
       <div className="flex flex-col items-center gap-1">
+        <button
+          type="button"
+          onClick={onSetReference}
+          className="rounded border border-gray-600 bg-gray-800 px-2 py-0.5 text-[10px] text-gray-200 hover:bg-gray-700"
+        >
+          Set reference
+        </button>
         <button
           type="button"
           onClick={onResetReference}
@@ -871,6 +880,13 @@ function CyclePanel({
         rows={rows}
         selected={selected}
         onSelect={onSelect}
+        onSetReference={() =>
+          onSetReference({
+            spread: selected.spread,
+            frame: selected.frame,
+            simIndex: selected.sim_index,
+          })
+        }
         onResetReference={onResetReference}
         referenceIsWr={referenceIsWr}
       />
