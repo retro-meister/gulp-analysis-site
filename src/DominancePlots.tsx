@@ -179,6 +179,121 @@ function formatTick(v: number): string {
   return Math.round(v).toLocaleString()
 }
 
+function formatPercentTick(v: number): string {
+  return `${Math.round(v)}%`
+}
+
+type ViewMode = '2d' | '1d'
+
+type PercentileData = {
+  standardized: Map<number, number>
+}
+
+function percentileForValue(values: number[], value: number): number {
+  const n = values.length
+  if (n === 0) return 50
+  if (n === 1) return 50
+  let less = 0
+  let equal = 0
+  for (const v of values) {
+    if (v < value) less++
+    else if (v === value) equal++
+  }
+  const rank = less + (equal > 0 ? (equal - 1) / 2 : 0)
+  return (rank / (n - 1)) * 100
+}
+
+function buildPercentileData(rows: DominanceRow[]): PercentileData {
+  const spreads = rows.map((r) => r.spread)
+  const frames = rows.map((r) => r.frame)
+  const standardized = new Map<number, number>()
+  for (const row of rows) {
+    const spreadPct = percentileForValue(spreads, row.spread)
+    const framePct = percentileForValue(frames, row.frame)
+    standardized.set(row.sim_index, (spreadPct + framePct) / 2)
+  }
+  return { standardized }
+}
+
+function referenceStandardizedPercentile(
+  reference: ReferencePoint,
+  rows: DominanceRow[],
+  percentiles: PercentileData,
+): number {
+  if (
+    reference.simIndex != null &&
+    percentiles.standardized.has(reference.simIndex)
+  ) {
+    return percentiles.standardized.get(reference.simIndex)!
+  }
+  const spreads = rows.map((r) => r.spread)
+  const frames = rows.map((r) => r.frame)
+  return (
+    (percentileForValue(spreads, reference.spread) +
+      percentileForValue(frames, reference.frame)) /
+    2
+  )
+}
+
+function classifyZone1d(
+  pointPct: number,
+  refPct: number,
+  isReference: boolean,
+): Zone {
+  if (isReference) return 'wr'
+  if (pointPct < refPct - 0.05) return 'dominator'
+  if (pointPct > refPct + 0.05) return 'dominated'
+  return 'tradeoff'
+}
+
+type Stats1d = {
+  refPct: number
+  selectedPct: number
+  wrPct: number
+  nBetter: number
+  nWorse: number
+  pctBetter: number
+  pctWorse: number
+}
+
+function statsFor1d(
+  rows: DominanceRow[],
+  reference: ReferencePoint,
+  selectedSimIndex: number,
+  percentiles: PercentileData,
+  refStdPct: number,
+  wrSimIndex: number,
+): Stats1d {
+  let nBetter = 0
+  let nWorse = 0
+  const comparable =
+    reference.simIndex != null ? rows.length - 1 : rows.length
+
+  for (const row of rows) {
+    if (reference.simIndex != null && row.sim_index === reference.simIndex) {
+      continue
+    }
+    const pct = percentiles.standardized.get(row.sim_index) ?? 50
+    if (pct < refStdPct - 0.05) nBetter++
+    else if (pct > refStdPct + 0.05) nWorse++
+  }
+
+  const pct = (n: number) =>
+    comparable === 0 ? 0 : Math.round((1000 * n) / comparable) / 10
+
+  return {
+    refPct: refStdPct,
+    selectedPct: percentiles.standardized.get(selectedSimIndex) ?? 50,
+    wrPct: percentiles.standardized.get(wrSimIndex) ?? 50,
+    nBetter,
+    nWorse,
+    pctBetter: pct(nBetter),
+    pctWorse: pct(nWorse),
+  }
+}
+
+const BOUNDS_1D: Viewport = { xMin: -2, xMax: 102, yMin: 0, yMax: 1 }
+
 function parseDropSlot(value: string): number | null {
   const n = Number.parseInt(value.trim(), 10)
   if (!Number.isInteger(n) || n < 1 || n > 25) return null
@@ -208,7 +323,6 @@ function DropLookup({
   const [bird2, setBird2] = useState(
     selected.bird2_drop != null ? String(selected.bird2_drop) : '',
   )
-  const [error, setError] = useState<string | null>(null)
 
   const tryLookup = (nextBird0: string, nextBird1: string, nextBird2: string) => {
     const b0 = parseDropSlot(nextBird0)
@@ -216,17 +330,12 @@ function DropLookup({
     const b2 = threeBird ? parseDropSlot(nextBird2) : null
 
     if (b0 == null || b1 == null || (threeBird && b2 == null)) {
-      setError(null)
       return
     }
 
     const row = findRowByDrops(rows, b0, b1, b2)
-    if (!row) {
-      setError('invalid')
-      return
-    }
+    if (!row) return
 
-    setError(null)
     onSelect(row.sim_index)
   }
 
@@ -300,11 +409,7 @@ function DropLookup({
         >
           Reset to WR
         </button>
-        <p className="text-center text-[9px] text-gray-500">Hold shift on plot</p>
       </div>
-      {error && (
-        <p className="text-center text-[10px] leading-tight text-red-400">{error}</p>
-      )}
     </div>
   )
 }
@@ -348,6 +453,8 @@ const ScatterCanvas = memo(function ScatterCanvas({
   plotTop,
   plotW,
   plotH,
+  svgH,
+  oneD = false,
   onSelect,
 }: {
   points: PlotPoint[]
@@ -355,6 +462,8 @@ const ScatterCanvas = memo(function ScatterCanvas({
   plotTop: number
   plotW: number
   plotH: number
+  svgH: number
+  oneD?: boolean
   onSelect: (simIndex: number) => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -367,10 +476,10 @@ const ScatterCanvas = memo(function ScatterCanvas({
 
     const dpr = window.devicePixelRatio || 1
     canvas.width = W * dpr
-    canvas.height = H * dpr
+    canvas.height = svgH * dpr
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    ctx.clearRect(0, 0, W, H)
+    ctx.clearRect(0, 0, W, svgH)
     ctx.save()
     ctx.beginPath()
     ctx.rect(plotLeft, plotTop, plotW, plotH)
@@ -380,24 +489,26 @@ const ScatterCanvas = memo(function ScatterCanvas({
       ctx.globalAlpha = style.opacity
       ctx.fillStyle = style.fill
       ctx.beginPath()
-      ctx.arc(point.cx, point.cy, style.r, 0, Math.PI * 2)
+      ctx.arc(point.cx, point.cy, oneD ? Math.min(style.r, 4) : style.r, 0, Math.PI * 2)
       ctx.fill()
     }
     ctx.restore()
     ctx.globalAlpha = 1
-  }, [points, plotLeft, plotTop, plotW, plotH])
+  }, [points, plotLeft, plotTop, plotW, plotH, svgH, oneD])
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = ref.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const mx = ((e.clientX - rect.left) / rect.width) * W
-    const my = ((e.clientY - rect.top) / rect.height) * H
+    const my = ((e.clientY - rect.top) / rect.height) * svgH
 
     let best: PlotPoint | null = null
-    let bestDist = 10
+    let bestDist = oneD ? 14 : 10
     for (const point of points) {
-      const dist = Math.hypot(point.cx - mx, point.cy - my)
+      const dist = oneD
+        ? Math.abs(point.cx - mx)
+        : Math.hypot(point.cx - mx, point.cy - my)
       if (dist < bestDist) {
         bestDist = dist
         best = point
@@ -469,17 +580,25 @@ function CyclePanel({
   onResetReference: () => void
 }) {
   const plotRef = useRef<HTMLDivElement>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('2d')
   const plotW = W - PAD.left - PAD.right
   const plotH = H - PAD.top - PAD.bottom
+  const lineY = PAD.top + plotH / 2
 
-  const fullBounds = useMemo(() => boundsFromRows(rows), [rows])
+  const fullBounds2d = useMemo(() => boundsFromRows(rows), [rows])
+  const fullBounds = viewMode === '2d' ? fullBounds2d : BOUNDS_1D
   const fullBoundsRef = useRef(fullBounds)
-  const [viewport, setViewport] = useState(() => boundsFromRows(rows))
+  const [viewport2d, setViewport2d] = useState(fullBounds2d)
+  const [viewport1d, setViewport1d] = useState(BOUNDS_1D)
+  const viewport = viewMode === '2d' ? viewport2d : viewport1d
   const viewportRef = useRef(viewport)
+  const viewModeRef = useRef(viewMode)
+  const percentiles = useMemo(() => buildPercentileData(rows), [rows])
 
   useEffect(() => {
     fullBoundsRef.current = fullBounds
     viewportRef.current = viewport
+    viewModeRef.current = viewMode
   })
 
   const dense = rows.length > 600
@@ -488,8 +607,44 @@ function CyclePanel({
     () => statsForReference(rows, reference),
     [rows, reference],
   )
+  const refStdPct = useMemo(
+    () => referenceStandardizedPercentile(reference, rows, percentiles),
+    [reference, rows, percentiles],
+  )
+  const stats1d = useMemo(
+    () =>
+      wr
+        ? statsFor1d(
+            rows,
+            reference,
+            selectedSimIndex,
+            percentiles,
+            refStdPct,
+            wr.sim_index,
+          )
+        : null,
+    [rows, reference, selectedSimIndex, percentiles, refStdPct, wr],
+  )
 
   const points = useMemo(() => {
+    if (viewMode === '1d') {
+      const xScale = scaleLinear(
+        [viewport.xMin, viewport.xMax],
+        [PAD.left, PAD.left + plotW],
+      )
+      return rows.map((row) => {
+        const stdPct = percentiles.standardized.get(row.sim_index) ?? 50
+        return {
+          sim_index: row.sim_index,
+          cx: xScale(stdPct),
+          cy: lineY,
+          zone: row.is_wr
+            ? 'wr'
+            : classifyZone1d(stdPct, refStdPct, false),
+        }
+      })
+    }
+
     const xScale = scaleLinear(
       [viewport.xMin, viewport.xMax],
       [PAD.left, PAD.left + plotW],
@@ -512,7 +667,7 @@ function CyclePanel({
             false,
           ),
     }))
-  }, [rows, reference, viewport, plotW, plotH])
+  }, [rows, reference, viewport, plotW, plotH, lineY, viewMode, percentiles, refStdPct])
 
   useEffect(() => {
     const el = plotRef.current
@@ -524,10 +679,28 @@ function CyclePanel({
       const px = ((e.clientX - rect.left) / rect.width) * W
       const py = ((e.clientY - rect.top) / rect.height) * H
       const current = viewportRef.current
-      const { spread, frame } = pixelToData(px, py, current, plotW, plotH)
       const scale = Math.exp(e.deltaY * 0.001)
 
-      setViewport((v) =>
+      if (viewModeRef.current === '1d') {
+        const xRatio = (px - PAD.left) / plotW
+        const anchorX =
+          current.xMin + xRatio * (current.xMax - current.xMin)
+        setViewport1d((v) => {
+          const xSpan = v.xMax - v.xMin
+          const newXSpan = xSpan * scale
+          const xRatio2 = (anchorX - v.xMin) / (xSpan || 1)
+          const next = {
+            ...v,
+            xMin: anchorX - newXSpan * xRatio2,
+            xMax: anchorX + newXSpan * (1 - xRatio2),
+          }
+          return clampViewport(next, fullBoundsRef.current)
+        })
+        return
+      }
+
+      const { spread, frame } = pixelToData(px, py, current, plotW, plotH)
+      setViewport2d((v) =>
         zoomViewport(v, fullBoundsRef.current, spread, frame, scale),
       )
     }
@@ -562,6 +735,7 @@ function CyclePanel({
     }
 
     const updateFromClient = (clientX: number, clientY: number) => {
+      if (viewModeRef.current === '1d') return
       const rect = el.getBoundingClientRect()
       const px = ((clientX - rect.left) / rect.width) * W
       const py = ((clientY - rect.top) / rect.height) * H
@@ -634,10 +808,15 @@ function CyclePanel({
     [viewport.yMin, viewport.yMax],
     [PAD.top + plotH, PAD.top],
   )
-  const xTicks = axisTicks(viewport.xMin, viewport.xMax)
-  const yTicks = axisTicks(viewport.yMin, viewport.yMax)
+  const xTicks =
+    viewMode === '1d'
+      ? axisTicks(Math.max(0, viewport.xMin), Math.min(100, viewport.xMax))
+      : axisTicks(viewport.xMin, viewport.xMax)
+  const yTicks = viewMode === '2d' ? axisTicks(viewport.yMin, viewport.yMax) : []
   const plotClipId = `plot-clip-${cycle}`
   const overlayClipId = `overlay-clip-${cycle}`
+  const toggleClass = (active: boolean) =>
+    `px-1.5 py-0.5 ${active ? 'bg-gray-700 text-gray-100' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`
 
   return (
     <div className="flex items-center gap-1">
@@ -645,6 +824,22 @@ function CyclePanel({
         ref={plotRef}
         className="relative size-[400px] max-w-full shrink-0"
       >
+        <div className="absolute top-1 right-1.5 z-10 flex overflow-hidden rounded border border-gray-600 text-[9px]">
+          <button
+            type="button"
+            onClick={() => setViewMode('2d')}
+            className={toggleClass(viewMode === '2d')}
+          >
+            2D
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('1d')}
+            className={toggleClass(viewMode === '1d')}
+          >
+            1D
+          </button>
+        </div>
         {dense && (
           <ScatterCanvas
             points={points}
@@ -652,6 +847,8 @@ function CyclePanel({
             plotTop={plotTop}
             plotW={plotW}
             plotH={plotH}
+            svgH={H}
+            oneD={viewMode === '1d'}
             onSelect={onSelect}
           />
         )}
@@ -685,14 +882,26 @@ function CyclePanel({
             stroke="#888888"
             strokeWidth={1}
           />
-          <line
-            x1={plotLeft}
-            x2={plotLeft}
-            y1={plotTop}
-            y2={plotBottom}
-            stroke="#888888"
-            strokeWidth={1}
-          />
+          {viewMode === '1d' && (
+            <line
+              x1={plotLeft}
+              x2={plotRight}
+              y1={lineY}
+              y2={lineY}
+              stroke="#666666"
+              strokeWidth={1.5}
+            />
+          )}
+          {viewMode === '2d' && (
+            <line
+              x1={plotLeft}
+              x2={plotLeft}
+              y1={plotTop}
+              y2={plotBottom}
+              stroke="#888888"
+              strokeWidth={1}
+            />
+          )}
 
           {xTicks.map((tick) => (
             <g key={`x-${tick}`}>
@@ -710,7 +919,7 @@ function CyclePanel({
                 textAnchor="middle"
                 className="fill-gray-400 text-[8px]"
               >
-                {formatTick(tick)}
+                {viewMode === '1d' ? formatPercentTick(tick) : formatTick(tick)}
               </text>
             </g>
           ))}
@@ -737,7 +946,8 @@ function CyclePanel({
             </g>
           ))}
 
-          {reference.spread >= viewport.xMin &&
+          {viewMode === '2d' &&
+            reference.spread >= viewport.xMin &&
             reference.spread <= viewport.xMax && (
               <g>
                 <line
@@ -759,7 +969,8 @@ function CyclePanel({
               </g>
             )}
 
-          {reference.frame >= viewport.yMin &&
+          {viewMode === '2d' &&
+            reference.frame >= viewport.yMin &&
             reference.frame <= viewport.yMax && (
               <g>
                 <line
@@ -782,6 +993,29 @@ function CyclePanel({
               </g>
             )}
 
+          {viewMode === '1d' &&
+            refStdPct >= viewport.xMin &&
+            refStdPct <= viewport.xMax && (
+              <g>
+                <line
+                  x1={x(refStdPct)}
+                  x2={x(refStdPct)}
+                  y1={plotBottom}
+                  y2={plotBottom + 6}
+                  stroke="#aaaaaa"
+                  strokeWidth={1.25}
+                />
+                <text
+                  x={x(refStdPct)}
+                  y={plotBottom + 16}
+                  textAnchor="middle"
+                  className="fill-gray-300 text-[8px] font-medium"
+                >
+                  {formatPercentTick(refStdPct)}
+                </text>
+              </g>
+            )}
+
           {!dense && (
             <ScatterSvg
               points={points}
@@ -791,69 +1025,138 @@ function CyclePanel({
             />
           )}
 
-          <g clipPath={`url(#${overlayClipId})`}>
-          {selectedPoint && (
-            <circle
-              cx={selectedPoint.cx}
-              cy={selectedPoint.cy}
-              r={selectedStyle.r}
-              fill={selectedStyle.fill}
-              fillOpacity={selectedStyle.opacity}
-              stroke="#ffffff"
-              strokeWidth={2}
-            />
+          {viewMode === '2d' && (
+            <g clipPath={`url(#${overlayClipId})`}>
+              {selectedPoint && (
+                <circle
+                  cx={selectedPoint.cx}
+                  cy={selectedPoint.cy}
+                  r={selectedStyle.r}
+                  fill={selectedStyle.fill}
+                  fillOpacity={selectedStyle.opacity}
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                />
+              )}
+
+              <line
+                x1={x(reference.spread)}
+                x2={x(reference.spread)}
+                y1={plotTop}
+                y2={plotBottom}
+                stroke="#aaaaaa"
+                strokeWidth={0.8}
+                strokeDasharray="4 3"
+              />
+              <line
+                x1={plotLeft}
+                x2={plotRight}
+                y1={y(reference.frame)}
+                y2={y(reference.frame)}
+                stroke="#aaaaaa"
+                strokeWidth={0.8}
+                strokeDasharray="4 3"
+              />
+            </g>
           )}
 
-          <line
-            x1={x(reference.spread)}
-            x2={x(reference.spread)}
-            y1={PAD.top}
-            y2={PAD.top + plotH}
-            stroke="#aaaaaa"
-            strokeWidth={0.8}
-            strokeDasharray="4 3"
-          />
-          <line
-            x1={PAD.left}
-            x2={PAD.left + plotW}
-            y1={y(reference.frame)}
-            y2={y(reference.frame)}
-            stroke="#aaaaaa"
-            strokeWidth={0.8}
-            strokeDasharray="4 3"
-          />
-          </g>
+          {viewMode === '1d' && (
+            <g clipPath={`url(#${overlayClipId})`}>
+              {selectedPoint && (
+                <circle
+                  cx={selectedPoint.cx}
+                  cy={selectedPoint.cy}
+                  r={selectedStyle.r}
+                  fill={selectedStyle.fill}
+                  fillOpacity={selectedStyle.opacity}
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                />
+              )}
+              <line
+                x1={x(refStdPct)}
+                x2={x(refStdPct)}
+                y1={plotTop}
+                y2={plotBottom}
+                stroke="#aaaaaa"
+                strokeWidth={0.8}
+                strokeDasharray="4 3"
+              />
+            </g>
+          )}
 
           <rect
             x={PAD.left + 4}
             y={PAD.top + 4}
             width={168}
-            height={52}
+            height={66}
             fill="#222222"
             fillOpacity={0.7}
             rx={2}
           />
-          <text
-            x={PAD.left + 10}
-            y={PAD.top + 18}
-            className="fill-gray-200 text-[8px]"
-          >
-            Dominators: {displayStats.n_dominators} ({displayStats.pct_dominators}%)
-          </text>
-          <text
-            x={PAD.left + 10}
-            y={PAD.top + 32}
-            className="fill-gray-200 text-[8px]"
-          >
-            Tradeoff: {displayStats.n_tradeoff} ({displayStats.pct_tradeoff}%)
-          </text>
-          <text
-            x={PAD.left + 10}
-            y={PAD.top + 46}
-            className="fill-gray-200 text-[8px]"
-          >
-            Dominated: {displayStats.n_dominated} ({displayStats.pct_dominated}%)
-          </text>
+          {viewMode === '2d' ? (
+            <>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 18}
+                className="fill-gray-200 text-[8px]"
+              >
+                Dominators: {displayStats.n_dominators} ({displayStats.pct_dominators}%)
+              </text>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 32}
+                className="fill-gray-200 text-[8px]"
+              >
+                Tradeoff: {displayStats.n_tradeoff} ({displayStats.pct_tradeoff}%)
+              </text>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 46}
+                className="fill-gray-200 text-[8px]"
+              >
+                Dominated: {displayStats.n_dominated} ({displayStats.pct_dominated}%)
+              </text>
+            </>
+          ) : stats1d && (
+            <>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 16}
+                className="fill-gray-200 text-[8px]"
+              >
+                Ref: {formatPercentTick(stats1d.refPct)}
+              </text>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 28}
+                className="fill-gray-200 text-[8px]"
+              >
+                Selected: {formatPercentTick(stats1d.selectedPct)}
+              </text>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 40}
+                className="fill-gray-200 text-[8px]"
+              >
+                WR: {formatPercentTick(stats1d.wrPct)}
+              </text>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 52}
+                className="fill-gray-200 text-[8px]"
+              >
+                Better: {stats1d.nBetter.toLocaleString()} ({stats1d.pctBetter}%)
+              </text>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 64}
+                className="fill-gray-200 text-[8px]"
+              >
+                Worse: {stats1d.nWorse.toLocaleString()} ({stats1d.pctWorse}%)
+              </text>
+            </>
+          )}
 
           <text
             x={W / 2}
@@ -861,17 +1164,19 @@ function CyclePanel({
             textAnchor="middle"
             className="fill-gray-400 text-[10px]"
           >
-            Spread
+            {viewMode === '1d' ? 'Standardized percentile' : 'Spread'}
           </text>
-          <text
-            x={12}
-            y={H / 2}
-            textAnchor="middle"
-            transform={`rotate(-90 12 ${H / 2})`}
-            className="fill-gray-400 text-[10px]"
-          >
-            Cycle complete frame
-          </text>
+          {viewMode === '2d' && (
+            <text
+              x={12}
+              y={H / 2}
+              textAnchor="middle"
+              transform={`rotate(-90 12 ${H / 2})`}
+              className="fill-gray-400 text-[10px]"
+            >
+              Cycle complete frame
+            </text>
+          )}
         </svg>
       </div>
       <DropLookup
