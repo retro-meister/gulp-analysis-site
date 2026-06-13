@@ -20,7 +20,7 @@ export const referencePresets: ReferencePreset[] = [
     id: 'laughably-generous',
     label: 'Set Laughably Generous Calculation',
     points: {
-      1: { frame: 68, spread: 7916 },
+      1: { frame: 68, spread: 8560 },
       2: { frame: 185, spread: 10092 },
       3: { frame: 118, spread: 11067 },
       4: { frame: 235, spread: 10100 },
@@ -30,7 +30,7 @@ export const referencePresets: ReferencePreset[] = [
     id: 'generous',
     label: 'Set Generous Calculation',
     points: {
-      1: { frame: 66, spread: 7465 },
+      1: { frame: 68, spread: 7930 },
       2: { frame: 186, spread: 8265 },
       3: { frame: 113, spread: 10157 },
       4: { frame: 223, spread: 9583 },
@@ -40,7 +40,7 @@ export const referencePresets: ReferencePreset[] = [
     id: 'realistic',
     label: 'Set Realistic Calculation (Still Cautious)',
     points: {
-      1: { frame: 58, spread: 7047 },
+      1: { frame: 66, spread: 7415 },
       2: { frame: 184, spread: 7489 },
       3: { frame: 95, spread: 10384 },
       4: { frame: 214, spread: 8164 },
