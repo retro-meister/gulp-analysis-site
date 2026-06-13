@@ -40,7 +40,7 @@ classified AS (
         s.is_wr,
         CASE
             WHEN s.is_wr THEN 'wr'
-            WHEN s.cycle_complete_frame < w.wr_frame AND s.spread < w.wr_spread THEN 'dominator'
+            WHEN s.cycle_complete_frame <= w.wr_frame AND s.spread <= w.wr_spread THEN 'dominator'
             WHEN s.cycle_complete_frame > w.wr_frame AND s.spread > w.wr_spread THEN 'dominated'
             ELSE 'tradeoff'
         END AS zone

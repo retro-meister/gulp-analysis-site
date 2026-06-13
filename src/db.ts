@@ -77,7 +77,7 @@ export function classifyZone(
   isReference: boolean,
 ): Zone {
   if (isReference) return 'wr'
-  if (frame < refFrame && spread < refSpread) return 'dominator'
+  if (frame <= refFrame && spread <= refSpread) return 'dominator'
   if (frame > refFrame && spread > refSpread) return 'dominated'
   return 'tradeoff'
 }

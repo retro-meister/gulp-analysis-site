@@ -183,6 +183,120 @@ function formatPercentTick(v: number): string {
   return `${Math.round(v)}%`
 }
 
+function oneInXFromCount(good: number, total: number): string {
+  if (good <= 0) return '—'
+  return Math.round(total / good).toLocaleString()
+}
+
+function cycleHitProbability(
+  stats: DominanceStats,
+  totalPermutations: number,
+  hasSpecificAssignment: boolean,
+): number {
+  if (stats.n_dominators > 0) return stats.n_dominators / totalPermutations
+  if (hasSpecificAssignment) return 1 / totalPermutations
+  return 0
+}
+
+function oneInXForCycle(
+  stats: DominanceStats,
+  totalPermutations: number,
+  hasSpecificAssignment: boolean,
+): string {
+  if (stats.n_dominators > 0) {
+    return oneInXFromCount(stats.n_dominators, totalPermutations)
+  }
+  if (hasSpecificAssignment) return totalPermutations.toLocaleString()
+  return '—'
+}
+
+function formatCycleOddsFactor(
+  stats: DominanceStats,
+  totalPermutations: number,
+  hasSpecificAssignment: boolean,
+): string {
+  const x = oneInXForCycle(stats, totalPermutations, hasSpecificAssignment)
+  if (x === '—') return '—'
+  return `1/${x}`
+}
+
+function formatChancePct(pct: number): string {
+  if (pct <= 0) return '0%'
+  if (pct >= 10) return `${pct.toFixed(1)}%`
+  if (pct >= 1) return `${pct.toFixed(2)}%`
+  if (pct >= 0.01) return `${pct.toFixed(4)}%`
+  const str = pct.toFixed(10).replace(/\.?0+$/, '')
+  return `${str}%`
+}
+
+type CycleOddsInput = {
+  cycle: number
+  stats: DominanceStats
+  totalPermutations: number
+  hasSpecificAssignment: boolean
+}
+
+function combinedDominatorChance(inputs: CycleOddsInput[]): {
+  pct: number
+  oneInX: string
+} {
+  let product = 1
+  let lateCycleProduct = 1
+  let hasLateCycles = false
+
+  for (const input of inputs) {
+    const p = cycleHitProbability(
+      input.stats,
+      input.totalPermutations,
+      input.hasSpecificAssignment,
+    )
+    if (input.cycle >= 3) {
+      lateCycleProduct *= p
+      hasLateCycles = true
+    } else {
+      product *= p
+    }
+  }
+
+  if (hasLateCycles) {
+    product *= lateCycleProduct / 2
+  }
+
+  const pct = product * 100
+  return {
+    pct,
+    oneInX: product > 0 ? Math.round(1 / product).toLocaleString() : '—',
+  }
+}
+
+function formatCombinedOddsExpression(inputs: CycleOddsInput[]): string {
+  const early = inputs.filter((input) => input.cycle < 3)
+  const late = inputs.filter((input) => input.cycle >= 3)
+  const earlyParts = early.map((input) =>
+    formatCycleOddsFactor(
+      input.stats,
+      input.totalPermutations,
+      input.hasSpecificAssignment,
+    ),
+  )
+
+  if (late.length === 0) return earlyParts.join(' × ')
+
+  const lateParts = late.map((input) =>
+    formatCycleOddsFactor(
+      input.stats,
+      input.totalPermutations,
+      input.hasSpecificAssignment,
+    ),
+  )
+  const lateGroup =
+    lateParts.length > 1
+      ? `((${lateParts.join(' × ')}) × 1/2)`
+      : `(${lateParts[0]} × 1/2)`
+
+  return [...earlyParts, lateGroup].join(' × ')
+}
+
 type ViewMode = '2d' | '1d'
 
 type PercentileData = {
@@ -898,7 +1012,22 @@ function CyclePanel({
     `px-1.5 py-0.5 ${active ? 'bg-gray-700 text-gray-100' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex w-full flex-col items-center">
+      <p className="mb-1.5 text-[12px] text-gray-300">
+        1 in{' '}
+        <span className="font-medium text-gray-100">
+          {oneInXForCycle(
+            displayStats,
+            rows.length,
+            reference.simIndex != null,
+          )}
+        </span>
+        <span className="text-gray-500">
+          {' '}
+          ({displayStats.pct_dominators}% dominators)
+        </span>
+      </p>
+      <div className="flex items-center gap-1">
       <div
         ref={plotRef}
         className="relative size-[400px] max-w-full shrink-0"
@@ -1279,6 +1408,7 @@ function CyclePanel({
         keyboardActive={keyboardActive}
         onActivate={onActivate}
       />
+      </div>
     </div>
   )
 }
@@ -1358,6 +1488,22 @@ export function DominancePlots({
     [rows],
   )
 
+  const referenceStats = useMemo(
+    () =>
+      cycles.map((cycle) => ({
+        cycle,
+        stats: statsForReference(rowsByCycle.get(cycle)!, reference[cycle]),
+        totalPermutations: rowsByCycle.get(cycle)!.length,
+        hasSpecificAssignment: reference[cycle].simIndex != null,
+      })),
+    [cycles, rowsByCycle, reference],
+  )
+
+  const combined = useMemo(
+    () => combinedDominatorChance(referenceStats),
+    [referenceStats],
+  )
+
   return (
     <div className="flex flex-col items-center">
       {cycles.map((cycle, i) => (
@@ -1376,6 +1522,20 @@ export function DominancePlots({
           />
         </div>
       ))}
+      {cycles.length > 0 && (
+        <div className="mt-8 w-full max-w-2xl border-t border-gray-600 pt-6 text-center">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">
+            All cycles back to back
+          </p>
+          <p className="mt-2 text-[15px] text-gray-200">
+            {formatCombinedOddsExpression(referenceStats)}{' '}
+            ={' '}
+            <span className="font-semibold text-gray-50">
+              1 in {combined.oneInX} ({formatChancePct(combined.pct)})
+            </span>
+          </p>
+        </div>
+      )}
     </div>
   )
 }
