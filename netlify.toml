@@ -1,0 +1,17 @@
+[build]
+  command = "pnpm build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "9"
+
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+
+[[headers]]
+  for = "/assets/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
