@@ -12,6 +12,7 @@ import { formatDisplayFrame } from './cycleFrames'
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
 const W = 400
 const H = 400
+const LATE_CYCLE_CHANCE_PCT = 40.19
 
 type PlotPoint = {
   sim_index: number
@@ -222,15 +223,6 @@ function formatCycleOddsFactor(
   return `1/${x}`
 }
 
-function formatChancePct(pct: number): string {
-  if (pct <= 0) return '0%'
-  if (pct >= 10) return `${pct.toFixed(1)}%`
-  if (pct >= 1) return `${pct.toFixed(2)}%`
-  if (pct >= 0.01) return `${pct.toFixed(4)}%`
-  const str = pct.toFixed(10).replace(/\.?0+$/, '')
-  return `${str}%`
-}
-
 type CycleOddsInput = {
   cycle: number
   stats: DominanceStats
@@ -239,7 +231,6 @@ type CycleOddsInput = {
 }
 
 function combinedDominatorChance(inputs: CycleOddsInput[]): {
-  pct: number
   oneInX: string
 } {
   let product = 1
@@ -251,14 +242,12 @@ function combinedDominatorChance(inputs: CycleOddsInput[]): {
       input.hasSpecificAssignment,
     )
     if (input.cycle >= 3) {
-      p /= 2
+      p *= LATE_CYCLE_CHANCE_PCT / 100
     }
     product *= p
   }
 
-  const pct = product * 100
   return {
-    pct,
     oneInX: product > 0 ? Math.round(1 / product).toLocaleString() : '—',
   }
 }
@@ -272,7 +261,7 @@ function formatCombinedOddsExpression(inputs: CycleOddsInput[]): string {
         input.hasSpecificAssignment,
       )
       if (input.cycle >= 3) {
-        return `(${factor} × 1/2)`
+        return `(${factor} × ${LATE_CYCLE_CHANCE_PCT}%)`
       }
       return factor
     })
@@ -1608,7 +1597,7 @@ export function DominancePlots({
             {formatCombinedOddsExpression(referenceStats)}{' '}
             ={' '}
             <span className="font-semibold text-gray-50">
-              1 in {combined.oneInX} ({formatChancePct(combined.pct)})
+              1 in {combined.oneInX}
             </span>
           </p>
         </div>
