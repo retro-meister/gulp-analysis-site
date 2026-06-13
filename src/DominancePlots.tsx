@@ -300,6 +300,15 @@ function parseDropSlot(value: string): number | null {
   return n
 }
 
+function filterDropSlotInput(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '')
+  if (digits === '') return null
+  if (digits.length > 2) return null
+  const n = Number.parseInt(digits, 10)
+  if (!Number.isInteger(n) || n < 1 || n > 25) return null
+  return digits
+}
+
 function wrapDropSlot(n: number, delta: number): number {
   return ((n - 1 + delta + 25) % 25) + 1
 }
@@ -319,50 +328,62 @@ function DropSlotInput({
   value: string
   onChange: (next: string) => void
 }) {
-  const mouseDownValue = useRef<string | null>(null)
-  const inputClass =
-    'w-11 rounded border border-gray-600 bg-gray-900 px-1.5 py-0.5 text-center text-xs text-gray-100'
-
   const step = (delta: number) => {
     onChange(dropSlotStep(value, delta))
   }
 
+  const stepperBtn =
+    'flex flex-1 items-center justify-center bg-gray-800 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100 active:bg-gray-600'
+
   return (
     <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
       {label}
-      <input
-        type="number"
-        min={1}
-        max={25}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowUp') {
-            e.preventDefault()
-            step(1)
-          } else if (e.key === 'ArrowDown') {
-            e.preventDefault()
-            step(-1)
-          }
-        }}
-        onMouseDown={() => {
-          mouseDownValue.current = value
-        }}
-        onMouseUp={(e) => {
-          const input = e.currentTarget
-          const rect = input.getBoundingClientRect()
-          if (e.clientX < rect.right - 18) return
-
-          const delta = e.clientY - rect.top < rect.height / 2 ? 1 : -1
-          const before = mouseDownValue.current
-
-          requestAnimationFrame(() => {
-            if (before == null || input.value !== before) return
-            onChange(dropSlotStep(before, delta))
-          })
-        }}
-        className={inputClass}
-      />
+      <div className="flex overflow-hidden rounded border border-gray-600 bg-gray-900">
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[1-9]|1[0-9]|2[0-5]"
+          value={value}
+          onChange={(e) => {
+            const next = filterDropSlotInput(e.target.value)
+            if (next != null) onChange(next)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              step(1)
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              step(-1)
+            }
+          }}
+          className="w-9 border-0 bg-transparent px-1 py-0.5 text-center text-xs text-gray-100 outline-none"
+        />
+        <div className="flex w-4 flex-col border-l border-gray-600">
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label={`Increase ${label}`}
+            onClick={() => step(1)}
+            className={`${stepperBtn} border-b border-gray-600`}
+          >
+            <svg viewBox="0 0 8 5" className="h-2 w-2 fill-current" aria-hidden>
+              <path d="M4 0 8 5H0Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label={`Decrease ${label}`}
+            onClick={() => step(-1)}
+            className={stepperBtn}
+          >
+            <svg viewBox="0 0 8 5" className="h-2 w-2 fill-current" aria-hidden>
+              <path d="M0 0h8L4 5Z" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </label>
   )
 }
