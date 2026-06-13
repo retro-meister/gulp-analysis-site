@@ -36,6 +36,58 @@ export function findRowByDrops(
   )
 }
 
+export function classifyZone(
+  frame: number,
+  spread: number,
+  refFrame: number,
+  refSpread: number,
+  isReference: boolean,
+): Zone {
+  if (isReference) return 'wr'
+  if (frame < refFrame && spread < refSpread) return 'dominator'
+  if (frame > refFrame && spread > refSpread) return 'dominated'
+  return 'tradeoff'
+}
+
+export type ReferencePoint = {
+  spread: number
+  frame: number
+  simIndex: number | null
+}
+
+export function statsForReference(
+  rows: DominanceRow[],
+  ref: ReferencePoint,
+): DominanceStats {
+  let n_dominators = 0
+  let n_tradeoff = 0
+  let n_dominated = 0
+  for (const row of rows) {
+    if (ref.simIndex != null && row.sim_index === ref.simIndex) continue
+    const zone = classifyZone(row.frame, row.spread, ref.frame, ref.spread, false)
+    if (zone === 'dominator') n_dominators++
+    else if (zone === 'tradeoff') n_tradeoff++
+    else n_dominated++
+  }
+
+  const n_assignments = ref.simIndex != null ? rows.length - 1 : rows.length
+  const pct = (n: number) =>
+    n_assignments === 0
+      ? 0
+      : Math.round((1000 * n) / n_assignments) / 10
+
+  return {
+    cycle: rows[0]?.cycle ?? 0,
+    n_assignments,
+    n_dominators,
+    n_tradeoff,
+    n_dominated,
+    pct_dominators: pct(n_dominators),
+    pct_tradeoff: pct(n_tradeoff),
+    pct_dominated: pct(n_dominated),
+  }
+}
+
 export type DominanceStats = {
   cycle: number
   n_assignments: number

@@ -1,6 +1,11 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from 'react'
-import type { DominanceRow, DominanceStats, Zone } from './db'
-import { findRowByDrops, rowDropSlots } from './db'
+import type { DominanceRow, DominanceStats, ReferencePoint, Zone } from './db'
+import {
+  classifyZone,
+  findRowByDrops,
+  rowDropSlots,
+  statsForReference,
+} from './db'
 import { ArenaMap } from './ArenaMap'
 
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
@@ -120,7 +125,7 @@ function zoomViewport(
   const xRatio = (anchorX - viewport.xMin) / (xSpan || 1)
   const yRatio = (anchorY - viewport.yMin) / (ySpan || 1)
 
-  let next = {
+  const next = {
     xMin: anchorX - newXSpan * xRatio,
     xMax: anchorX + newXSpan * (1 - xRatio),
     yMin: anchorY - newYSpan * yRatio,
@@ -186,11 +191,17 @@ function DropLookup({
   rows,
   selected,
   onSelect,
+  onSetReference,
+  onResetReference,
+  referenceIsWr,
 }: {
   cycle: number
   rows: DominanceRow[]
   selected: DominanceRow
   onSelect: (simIndex: number) => void
+  onSetReference: () => void
+  onResetReference: () => void
+  referenceIsWr: boolean
 }) {
   const threeBird = cycle >= 3
   const [bird0, setBird0] = useState(String(selected.bird0_drop))
@@ -273,6 +284,25 @@ function DropLookup({
             />
           </label>
         )}
+      </div>
+      <div className="flex flex-col items-center gap-1">
+        <button
+          type="button"
+          onClick={onSetReference}
+          className="rounded border border-gray-600 bg-gray-800 px-2 py-0.5 text-[10px] text-gray-200 hover:bg-gray-700"
+        >
+          Set reference
+        </button>
+        {!referenceIsWr && (
+          <button
+            type="button"
+            onClick={onResetReference}
+            className="text-[10px] text-gray-400 underline hover:text-gray-200"
+          >
+            Reset to WR
+          </button>
+        )}
+        <p className="text-center text-[9px] text-gray-500">Hold shift on plot</p>
       </div>
       {error && (
         <p className="text-center text-[10px] leading-tight text-red-400">{error}</p>
@@ -422,15 +452,19 @@ const ScatterSvg = memo(function ScatterSvg({
 function CyclePanel({
   cycle,
   rows,
-  stats,
   selectedSimIndex,
+  reference,
   onSelect,
+  onSetReference,
+  onResetReference,
 }: {
   cycle: number
   rows: DominanceRow[]
-  stats: DominanceStats
   selectedSimIndex: number
+  reference: ReferencePoint
   onSelect: (simIndex: number) => void
+  onSetReference: (reference: ReferencePoint) => void
+  onResetReference: () => void
 }) {
   const plotRef = useRef<HTMLDivElement>(null)
   const plotW = W - PAD.left - PAD.right
@@ -438,12 +472,20 @@ function CyclePanel({
 
   const fullBounds = useMemo(() => boundsFromRows(rows), [rows])
   const fullBoundsRef = useRef(fullBounds)
-  fullBoundsRef.current = fullBounds
   const [viewport, setViewport] = useState(() => boundsFromRows(rows))
   const viewportRef = useRef(viewport)
-  viewportRef.current = viewport
+
+  useEffect(() => {
+    fullBoundsRef.current = fullBounds
+    viewportRef.current = viewport
+  })
 
   const dense = rows.length > 600
+  const wr = rows.find((r) => r.is_wr)
+  const displayStats = useMemo(
+    () => statsForReference(rows, reference),
+    [rows, reference],
+  )
 
   const points = useMemo(() => {
     const xScale = scaleLinear(
@@ -458,9 +500,15 @@ function CyclePanel({
       sim_index: row.sim_index,
       cx: xScale(row.spread),
       cy: yScale(row.frame),
-      zone: row.zone,
+      zone: classifyZone(
+        row.frame,
+        row.spread,
+        reference.frame,
+        reference.spread,
+        reference.simIndex != null && row.sim_index === reference.simIndex,
+      ),
     }))
-  }, [rows, viewport, plotW, plotH])
+  }, [rows, reference, viewport, plotW, plotH])
 
   useEffect(() => {
     const el = plotRef.current
@@ -484,17 +532,93 @@ function CyclePanel({
     return () => el.removeEventListener('wheel', onWheel)
   }, [plotW, plotH])
 
-  const wr = rows.find((r) => r.zone === 'wr')
+  useEffect(() => {
+    const el = plotRef.current
+    if (!el) return
+
+    const plotLeft = PAD.left
+    const plotRight = PAD.left + plotW
+    const plotTop = PAD.top
+    const plotBottom = PAD.top + plotH
+
+    let raf = 0
+    let pending: ReferencePoint | null = null
+
+    const commit = () => {
+      raf = 0
+      if (pending) {
+        onSetReference(pending)
+        pending = null
+      }
+    }
+
+    const schedule = (ref: ReferencePoint) => {
+      pending = ref
+      if (!raf) raf = requestAnimationFrame(commit)
+    }
+
+    const updateFromClient = (clientX: number, clientY: number) => {
+      const rect = el.getBoundingClientRect()
+      const px = ((clientX - rect.left) / rect.width) * W
+      const py = ((clientY - rect.top) / rect.height) * H
+      if (px < plotLeft || px > plotRight || py < plotTop || py > plotBottom) return
+
+      const { spread, frame } = pixelToData(
+        px,
+        py,
+        viewportRef.current,
+        plotW,
+        plotH,
+      )
+
+      schedule({ spread, frame, simIndex: null })
+    }
+
+    const lastMouse = { x: 0, y: 0, inPlot: false }
+
+    const onMouseMove = (e: MouseEvent) => {
+      const rect = el.getBoundingClientRect()
+      const px = ((e.clientX - rect.left) / rect.width) * W
+      const py = ((e.clientY - rect.top) / rect.height) * H
+      lastMouse.x = e.clientX
+      lastMouse.y = e.clientY
+      lastMouse.inPlot =
+        px >= plotLeft &&
+        px <= plotRight &&
+        py >= plotTop &&
+        py <= plotBottom
+
+      if (e.shiftKey && lastMouse.inPlot) {
+        updateFromClient(e.clientX, e.clientY)
+      }
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Shift' || e.repeat) return
+      if (lastMouse.inPlot) updateFromClient(lastMouse.x, lastMouse.y)
+    }
+
+    el.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      el.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('keydown', onKeyDown)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [plotW, plotH, onSetReference])
+
   const selected = rows.find((r) => r.sim_index === selectedSimIndex)
   if (!wr || !selected) return null
-
-  const selectedPoint = points.find((p) => p.sim_index === selectedSimIndex)
-  const selectedStyle = selectedPointStyle(selected.zone)
 
   const plotLeft = PAD.left
   const plotRight = PAD.left + plotW
   const plotTop = PAD.top
   const plotBottom = PAD.top + plotH
+
+  const selectedPoint = points.find((p) => p.sim_index === selectedSimIndex)
+  const selectedZone = selectedPoint?.zone ?? 'tradeoff'
+  const selectedStyle = selectedPointStyle(selectedZone)
+
   const x = scaleLinear(
     [viewport.xMin, viewport.xMax],
     [PAD.left, PAD.left + plotW],
@@ -509,7 +633,7 @@ function CyclePanel({
   const overlayClipId = `overlay-clip-${cycle}`
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-1">
       <div
         ref={plotRef}
         className="relative size-[400px] max-w-full shrink-0"
@@ -629,8 +753,8 @@ function CyclePanel({
           )}
 
           <line
-            x1={x(wr.spread)}
-            x2={x(wr.spread)}
+            x1={x(reference.spread)}
+            x2={x(reference.spread)}
             y1={PAD.top}
             y2={PAD.top + plotH}
             stroke="#aaaaaa"
@@ -640,8 +764,8 @@ function CyclePanel({
           <line
             x1={PAD.left}
             x2={PAD.left + plotW}
-            y1={y(wr.frame)}
-            y2={y(wr.frame)}
+            y1={y(reference.frame)}
+            y2={y(reference.frame)}
             stroke="#aaaaaa"
             strokeWidth={0.8}
             strokeDasharray="4 3"
@@ -662,21 +786,21 @@ function CyclePanel({
             y={PAD.top + 18}
             className="fill-gray-200 text-[8px]"
           >
-            Dominators: {stats.n_dominators} ({stats.pct_dominators}%)
+            Dominators: {displayStats.n_dominators} ({displayStats.pct_dominators}%)
           </text>
           <text
             x={PAD.left + 10}
             y={PAD.top + 32}
             className="fill-gray-200 text-[8px]"
           >
-            Tradeoff: {stats.n_tradeoff} ({stats.pct_tradeoff}%)
+            Tradeoff: {displayStats.n_tradeoff} ({displayStats.pct_tradeoff}%)
           </text>
           <text
             x={PAD.left + 10}
             y={PAD.top + 46}
             className="fill-gray-200 text-[8px]"
           >
-            Dominated by WR: {stats.n_dominated} ({stats.pct_dominated}%)
+            Dominated: {displayStats.n_dominated} ({displayStats.pct_dominated}%)
           </text>
 
           <text
@@ -704,30 +828,56 @@ function CyclePanel({
         rows={rows}
         selected={selected}
         onSelect={onSelect}
+        onSetReference={() =>
+          onSetReference({
+            spread: selected.spread,
+            frame: selected.frame,
+            simIndex: selected.sim_index,
+          })
+        }
+        onResetReference={onResetReference}
+        referenceIsWr={reference.simIndex === wr.sim_index}
       />
       <ArenaMap highlightedSlots={rowDropSlots(selected)} />
     </div>
   )
 }
 
-function defaultSelection(rows: DominanceRow[], cycles: number[]) {
-  const selected: Record<number, number> = {}
+function defaultWrReference(rows: DominanceRow[], cycles: number[]) {
+  const reference: Record<number, ReferencePoint> = {}
   for (const cycle of cycles) {
     const wr = rows.find((r) => r.cycle === cycle && r.is_wr)
-    if (wr) selected[cycle] = wr.sim_index
+    if (wr) {
+      reference[cycle] = {
+        spread: wr.spread,
+        frame: wr.frame,
+        simIndex: wr.sim_index,
+      }
+    }
   }
-  return selected
+  return reference
 }
 
 export function DominancePlots({
   rows,
-  stats,
 }: {
   rows: DominanceRow[]
   stats: DominanceStats[]
 }) {
-  const cycles = useMemo(() => stats.map((s) => s.cycle), [stats])
-  const [selected, setSelected] = useState(() => defaultSelection(rows, cycles))
+  const cycles = useMemo(() => {
+    const set = new Set<number>()
+    for (const row of rows) set.add(row.cycle)
+    return [...set].sort((a, b) => a - b)
+  }, [rows])
+  const [selected, setSelected] = useState(() => {
+    const refs = defaultWrReference(rows, cycles)
+    const sel: Record<number, number> = {}
+    for (const cycle of cycles) {
+      if (refs[cycle]?.simIndex != null) sel[cycle] = refs[cycle].simIndex!
+    }
+    return sel
+  })
+  const [reference, setReference] = useState(() => defaultWrReference(rows, cycles))
 
   const rowsByCycle = useMemo(() => {
     const map = new Map<number, DominanceRow[]>()
@@ -744,6 +894,26 @@ export function DominancePlots({
     setSelected((prev) => ({ ...prev, [cycle]: simIndex }))
   }, [])
 
+  const handleSetReference = useCallback(
+    (cycle: number, ref: ReferencePoint) => {
+      setReference((prev) => ({ ...prev, [cycle]: ref }))
+    },
+    [],
+  )
+
+  const handleResetReference = useCallback(
+    (cycle: number) => {
+      const wr = rows.find((r) => r.cycle === cycle && r.is_wr)
+      if (wr) {
+        setReference((prev) => ({
+          ...prev,
+          [cycle]: { spread: wr.spread, frame: wr.frame, simIndex: wr.sim_index },
+        }))
+      }
+    },
+    [rows],
+  )
+
   return (
     <div className="flex flex-col items-center gap-6">
       {cycles.map((cycle) => (
@@ -751,9 +921,11 @@ export function DominancePlots({
           key={cycle}
           cycle={cycle}
           rows={rowsByCycle.get(cycle)!}
-          stats={stats.find((s) => s.cycle === cycle)!}
           selectedSimIndex={selected[cycle]}
+          reference={reference[cycle]}
           onSelect={(simIndex) => handleSelect(cycle, simIndex)}
+          onSetReference={(ref) => handleSetReference(cycle, ref)}
+          onResetReference={() => handleResetReference(cycle)}
         />
       ))}
     </div>
