@@ -48,6 +48,24 @@ function loadAssetSizes(): Plugin {
   }
 }
 
+function remoteDuckdbWasm(r2BaseUrl?: string): Plugin {
+  const virtualId = '\0virtual:duckdb-mvp.wasm'
+
+  return {
+    name: 'remote-duckdb-wasm',
+    enforce: 'pre',
+    resolveId(source) {
+      if (!r2BaseUrl) return
+      if (source.endsWith('duckdb-mvp.wasm?url')) return virtualId
+    },
+    load(id) {
+      if (id !== virtualId || !r2BaseUrl) return
+      const url = `${r2BaseUrl.replace(/\/$/, '')}/duckdb-mvp.wasm`
+      return `export default ${JSON.stringify(url)}`
+    },
+  }
+}
+
 function stripRemoteDataAssets(r2BaseUrl?: string): Plugin {
   return {
     name: 'strip-remote-data-assets',
@@ -58,6 +76,14 @@ function stripRemoteDataAssets(r2BaseUrl?: string): Plugin {
         const target = path.join(dist, file)
         if (fs.existsSync(target)) fs.unlinkSync(target)
       }
+      const assetsDir = path.join(dist, 'assets')
+      if (fs.existsSync(assetsDir)) {
+        for (const entry of fs.readdirSync(assetsDir)) {
+          if (entry.endsWith('.wasm')) {
+            fs.unlinkSync(path.join(assetsDir, entry))
+          }
+        }
+      }
     },
   }
 }
@@ -66,6 +92,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, root, '')
   return {
     plugins: [
+      remoteDuckdbWasm(env.VITE_R2_BASE_URL),
       loadAssetSizes(),
       stripDuckdbWorkerSourceMap(),
       stripRemoteDataAssets(env.VITE_R2_BASE_URL),
