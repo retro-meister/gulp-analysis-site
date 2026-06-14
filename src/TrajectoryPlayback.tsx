@@ -149,7 +149,7 @@ export function TrajectoryPlayback({
 
   return (
     <div
-      className="flex w-full min-w-0 max-w-full flex-col items-center gap-2 min-[1920px]:gap-2.5"
+      className="flex w-viz flex-col items-center gap-2 min-[1920px]:gap-2.5"
       onPointerDown={onActivate}
     >
       <ArenaMap

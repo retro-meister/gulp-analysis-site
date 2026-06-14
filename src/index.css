@@ -11,6 +11,7 @@
   --font-lg: 15px;
   --font-xl: 20px;
   --font-2xl: 24px;
+  --font-3xl: 28px;
   --loading-bar-height: 10px;
 }
 
@@ -26,21 +27,19 @@
     --font-lg: 24px;
     --font-xl: 32px;
     --font-2xl: 40px;
+    --font-3xl: 48px;
     --loading-bar-height: 18px;
   }
 }
 
 @layer utilities {
   .size-viz {
-    width: min(var(--viz-size), 100%);
-    max-width: 100%;
-    aspect-ratio: 1;
-    height: auto;
+    width: var(--viz-size);
+    height: var(--viz-size);
   }
 
   .w-viz {
-    width: min(var(--viz-size), 100%);
-    max-width: 100%;
+    width: var(--viz-size);
   }
 
   .text-ui-2xs {
@@ -79,6 +78,10 @@
     font-size: var(--font-2xl);
   }
 
+  .text-ui-3xl {
+    font-size: var(--font-3xl);
+  }
+
   .h-loading-bar {
     height: var(--loading-bar-height);
   }
@@ -86,10 +89,10 @@
 
 @layer base {
   body {
-    @apply m-0 overflow-x-hidden bg-[#16171d] font-sans text-gray-200;
+    @apply m-0 bg-[#16171d] font-sans text-gray-200;
   }
 
   #root {
-    @apply min-h-svh min-w-0 overflow-x-hidden;
+    @apply min-h-svh;
   }
 }

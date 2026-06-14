@@ -32,20 +32,20 @@ function LateCycleChanceLabel() {
     <span className="group/late relative inline cursor-help bg-[length:5px_2px] bg-bottom bg-repeat-x pb-0.5 transition-colors [background-image:radial-gradient(circle,rgb(107_114_128)_1px,transparent_1px)] hover:text-gray-50 hover:[background-image:radial-gradient(circle,rgb(209_213_219)_1px,transparent_1px)]">
       {LATE_CYCLE_CHANCE_PCT}%
       <span
-        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded border border-gray-600 bg-gray-950 p-3 text-left text-ui-2sm font-normal normal-case tracking-normal text-gray-300 no-underline shadow-xl group-hover/late:block"
+        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-96 -translate-x-1/2 rounded border border-gray-600 bg-gray-950 p-4 text-center text-ui-sm font-normal normal-case tracking-normal text-gray-300 no-underline shadow-xl group-hover/late:block min-[1920px]:w-[28rem] min-[1920px]:p-5 min-[1920px]:text-ui-base"
         role="tooltip"
       >
         <p className="text-gray-100">
           b = bomb, B = barrel, R = rocket
         </p>
-        <div className="my-2 h-px w-full bg-gray-600" aria-hidden />
-        <table className="w-full border-collapse text-ui-xs">
+        <div className="my-2 h-px w-full bg-gray-600 min-[1920px]:my-3" aria-hidden />
+        <table className="mx-auto w-full border-collapse text-ui-sm min-[1920px]:text-ui-base">
           <thead>
             <tr className="text-gray-100">
-              <th className="pb-1 pr-2 text-left font-normal">Config</th>
-              <th className="pb-1 pr-2 text-right font-normal">Permutations</th>
-              <th className="pb-1 pr-2 text-right font-normal">%</th>
-              <th className="pb-1 text-right font-normal">Tripleable</th>
+              <th className="px-2 pb-1.5 font-normal min-[1920px]:pb-2">Config</th>
+              <th className="px-2 pb-1.5 font-normal min-[1920px]:pb-2">Permutations</th>
+              <th className="px-2 pb-1.5 font-normal min-[1920px]:pb-2">%</th>
+              <th className="px-2 pb-1.5 font-normal min-[1920px]:pb-2">Tripleable</th>
             </tr>
           </thead>
           <tbody>
@@ -54,17 +54,18 @@ function LateCycleChanceLabel() {
                 key={row.config}
                 className={row.tripleable ? 'text-gray-100' : 'text-gray-500'}
               >
-                <td className="py-0.5 pr-2 font-mono">{row.config}</td>
-                <td className="py-0.5 pr-2 text-right tabular-nums">{row.perms}</td>
-                <td className="py-0.5 pr-2 text-right tabular-nums">
+                <td className="px-2 py-0.5 font-mono min-[1920px]:py-1">{row.config}</td>
+                <td className="px-2 py-0.5 tabular-nums min-[1920px]:py-1">{row.perms}</td>
+                <td className="px-2 py-0.5 tabular-nums min-[1920px]:py-1">
                   {row.pct.toFixed(2)}%
                 </td>
-                <td className="py-0.5 text-right">{row.tripleable ? 'Yes' : 'No'}</td>
+                <td className="px-2 py-0.5 min-[1920px]:py-1">{row.tripleable ? 'Yes' : 'No'}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="mt-2 text-gray-400">
+        <div className="my-2 h-px w-full bg-gray-600 min-[1920px]:my-3" aria-hidden />
+        <p className="text-ui-sm text-gray-400 min-[1920px]:text-ui-base">
           Tripleable rows sum to {LATE_CYCLE_CHANCE_PCT}%.
         </p>
       </span>
@@ -864,7 +865,7 @@ function CyclePanel({
 
   return (
     <div className="flex w-full flex-col items-center">
-      <p className="mb-2 max-w-full px-1 text-center text-ui-base text-gray-300 sm:text-ui-lg min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
+      <p className="mb-2 text-ui-lg text-gray-300 min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
         1 in{' '}
         <span className="font-semibold text-gray-100">
           {oneInXForCycle(
@@ -878,10 +879,10 @@ function CyclePanel({
           ({displayStats.pct_dominators}% dominators)
         </span>
       </p>
-      <div className="flex w-full min-w-0 max-w-full flex-col items-center gap-4 xl:flex-row xl:items-center xl:justify-center xl:gap-1">
+      <div className="flex items-center gap-1">
       <div
         ref={plotRef}
-        className="relative size-viz w-full"
+        className="relative size-viz max-w-full shrink-0"
       >
         {dense && (
           <ScatterCanvas
@@ -1185,7 +1186,7 @@ export function DominancePlots({
   )
 
   const calculationButtonClass = (active: boolean) =>
-    `rounded border px-3 py-1.5 text-ui-sm outline-none focus-visible:ring-1 focus-visible:ring-gray-400 sm:px-4 sm:text-ui-base min-[1920px]:px-5 min-[1920px]:py-2 min-[1920px]:text-ui-lg ${
+    `rounded border px-4 py-1.5 text-ui-base min-[1920px]:px-5 min-[1920px]:py-2 min-[1920px]:text-ui-lg outline-none focus-visible:ring-1 focus-visible:ring-gray-400 ${
       active
         ? 'border-gray-400 bg-gray-600 text-gray-50'
         : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
@@ -1280,8 +1281,8 @@ export function DominancePlots({
 
   return (
     <>
-      <div className="flex w-full min-w-0 flex-col items-center pb-36 sm:pb-32 min-[1920px]:pb-44">
-        <div className="mb-4 flex w-full min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-2 sm:mb-6 sm:gap-y-3 min-[1920px]:mb-8 min-[1920px]:gap-y-4">
+      <div className="flex flex-col items-center pb-32 min-[1920px]:pb-44">
+        <div className="mb-6 flex flex-wrap items-center justify-center gap-x-1 gap-y-3 min-[1920px]:mb-8 min-[1920px]:gap-y-4">
         {referencePresets.map((preset, i) => (
           <Fragment key={preset.id}>
             {i > 0 && (
@@ -1324,7 +1325,7 @@ export function DominancePlots({
           <p className="text-ui-md font-semibold uppercase tracking-wider text-gray-200">
             All cycles back to back calculation:
           </p>
-          <p className="mt-2 text-ui-lg text-gray-200">
+          <p className="mt-2 whitespace-nowrap text-ui-lg text-gray-200 min-[1920px]:text-ui-3xl">
             <CombinedOddsExpression inputs={referenceStats} /> ={' '}
             <span className="font-semibold text-gray-50">
               1 in {combined.oneInX}
@@ -1334,14 +1335,14 @@ export function DominancePlots({
       )}
       </div>
       {cycles.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-gray-500 bg-[#1c1d24]/98 px-3 py-3 shadow-[0_-12px_40px_rgba(0,0,0,0.55)] backdrop-blur-sm sm:px-4 sm:py-4 min-[1920px]:px-8 min-[1920px]:py-5">
-          <div className="mx-auto min-w-0 max-w-5xl text-center min-[1920px]:max-w-7xl">
-            <p className="text-ui-sm font-bold uppercase tracking-wider text-gray-50 sm:text-ui-lg min-[1920px]:tracking-widest">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-gray-500 bg-[#1c1d24]/98 px-4 py-4 shadow-[0_-12px_40px_rgba(0,0,0,0.55)] backdrop-blur-sm min-[1920px]:px-8 min-[1920px]:py-5">
+          <div className="w-full px-4 text-center min-[1920px]:px-8">
+            <p className="text-ui-lg font-bold uppercase tracking-widest text-gray-50 min-[1920px]:text-ui-2xl">
               Total probability calculation:
             </p>
-            <p className="mt-1.5 break-words text-ui-2sm leading-snug text-gray-200 sm:mt-2 sm:text-ui-lg">
+            <p className="mt-2 whitespace-nowrap text-ui-lg text-gray-200 min-[1920px]:text-ui-3xl">
               <CombinedOddsExpression inputs={referenceStats} /> ={' '}
-              <span className="text-ui-base font-bold text-white sm:text-ui-xl">
+              <span className="font-bold text-white">
                 1 in {combined.oneInX}
               </span>
             </p>
