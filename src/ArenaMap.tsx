@@ -36,8 +36,7 @@ export function ArenaMap({
   return (
     <svg
       viewBox={`0 0 ${ARENA_SIZE} ${ARENA_SIZE}`}
-      className="block max-w-full shrink-0"
-      style={{ width: ARENA_SIZE, height: ARENA_SIZE }}
+      className="block size-viz max-w-full shrink-0"
     >
       <circle
         cx={arenaCircle.cx}

@@ -1,5 +1,86 @@
 @import "tailwindcss";
 
+:root {
+  --viz-size: 400px;
+  --font-2xs: 8px;
+  --font-xs: 9px;
+  --font-2sm: 10px;
+  --font-sm: 11px;
+  --font-md: 12px;
+  --font-base: 13px;
+  --font-lg: 15px;
+  --font-xl: 20px;
+  --font-2xl: 24px;
+  --loading-bar-height: 10px;
+}
+
+@media (min-width: 1920px) {
+  :root {
+    --viz-size: 720px;
+    --font-2xs: 12px;
+    --font-xs: 14px;
+    --font-2sm: 15px;
+    --font-sm: 17px;
+    --font-md: 18px;
+    --font-base: 20px;
+    --font-lg: 24px;
+    --font-xl: 32px;
+    --font-2xl: 40px;
+    --loading-bar-height: 18px;
+  }
+}
+
+@layer utilities {
+  .size-viz {
+    width: var(--viz-size);
+    height: var(--viz-size);
+  }
+
+  .w-viz {
+    width: var(--viz-size);
+  }
+
+  .text-ui-2xs {
+    font-size: var(--font-2xs);
+  }
+
+  .text-ui-xs {
+    font-size: var(--font-xs);
+  }
+
+  .text-ui-2sm {
+    font-size: var(--font-2sm);
+  }
+
+  .text-ui-sm {
+    font-size: var(--font-sm);
+  }
+
+  .text-ui-md {
+    font-size: var(--font-md);
+  }
+
+  .text-ui-base {
+    font-size: var(--font-base);
+  }
+
+  .text-ui-lg {
+    font-size: var(--font-lg);
+  }
+
+  .text-ui-xl {
+    font-size: var(--font-xl);
+  }
+
+  .text-ui-2xl {
+    font-size: var(--font-2xl);
+  }
+
+  .h-loading-bar {
+    height: var(--loading-bar-height);
+  }
+}
+
 @layer base {
   body {
     @apply m-0 bg-[#16171d] font-sans text-gray-200;

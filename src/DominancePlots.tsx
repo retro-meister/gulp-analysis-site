@@ -6,7 +6,7 @@ import {
   statsForReference,
 } from './db'
 import { TrajectoryPlayback } from './TrajectoryPlayback'
-import { referenceFromPreset, referencePresets, wrCalculationLabel, formatReferencePresetSnippet, defaultReference, getActiveCalculationId } from './referencePresets'
+import { referenceFromPreset, referencePresets, formatReferencePresetSnippet, defaultReference, getActiveCalculationId } from './referencePresets'
 import { formatDisplayFrame } from './cycleFrames'
 
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
@@ -32,14 +32,14 @@ function LateCycleChanceLabel() {
     <span className="group/late relative inline cursor-help bg-[length:5px_2px] bg-bottom bg-repeat-x pb-0.5 transition-colors [background-image:radial-gradient(circle,rgb(107_114_128)_1px,transparent_1px)] hover:text-gray-50 hover:[background-image:radial-gradient(circle,rgb(209_213_219)_1px,transparent_1px)]">
       {LATE_CYCLE_CHANCE_PCT}%
       <span
-        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded border border-gray-600 bg-gray-950 p-3 text-left text-[10px] font-normal normal-case tracking-normal text-gray-300 no-underline shadow-xl group-hover/late:block"
+        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded border border-gray-600 bg-gray-950 p-3 text-left text-ui-2sm font-normal normal-case tracking-normal text-gray-300 no-underline shadow-xl group-hover/late:block"
         role="tooltip"
       >
         <p className="text-gray-100">
           b = bomb, B = barrel, R = rocket
         </p>
         <div className="my-2 h-px w-full bg-gray-600" aria-hidden />
-        <table className="w-full border-collapse text-[9px]">
+        <table className="w-full border-collapse text-ui-xs">
           <thead>
             <tr className="text-gray-100">
               <th className="pb-1 pr-2 text-left font-normal">Config</th>
@@ -240,10 +240,6 @@ function formatTick(v: number): string {
   return Math.round(v).toLocaleString()
 }
 
-function formatPercentTick(v: number): string {
-  return `${Math.round(v)}%`
-}
-
 function oneInXFromCount(good: number, total: number): string {
   if (good <= 0) return '—'
   return Math.round(total / good).toLocaleString()
@@ -336,117 +332,6 @@ function CombinedOddsExpression({ inputs }: { inputs: CycleOddsInput[] }) {
   )
 }
 
-type ViewMode = '2d' | '1d'
-
-type PercentileData = {
-  standardized: Map<number, number>
-}
-
-function percentileForValue(values: number[], value: number): number {
-  const n = values.length
-  if (n === 0) return 50
-  if (n === 1) return 50
-  let less = 0
-  let equal = 0
-  for (const v of values) {
-    if (v < value) less++
-    else if (v === value) equal++
-  }
-  const rank = less + (equal > 0 ? (equal - 1) / 2 : 0)
-  return (rank / (n - 1)) * 100
-}
-
-function buildPercentileData(rows: DominanceRow[]): PercentileData {
-  const spreads = rows.map((r) => r.spread)
-  const frames = rows.map((r) => r.frame)
-  const standardized = new Map<number, number>()
-  for (const row of rows) {
-    const spreadPct = percentileForValue(spreads, row.spread)
-    const framePct = percentileForValue(frames, row.frame)
-    standardized.set(row.sim_index, (spreadPct + framePct) / 2)
-  }
-  return { standardized }
-}
-
-function referenceStandardizedPercentile(
-  reference: ReferencePoint,
-  rows: DominanceRow[],
-  percentiles: PercentileData,
-): number {
-  if (
-    reference.simIndex != null &&
-    percentiles.standardized.has(reference.simIndex)
-  ) {
-    return percentiles.standardized.get(reference.simIndex)!
-  }
-  const spreads = rows.map((r) => r.spread)
-  const frames = rows.map((r) => r.frame)
-  return (
-    (percentileForValue(spreads, reference.spread) +
-      percentileForValue(frames, reference.frame)) /
-    2
-  )
-}
-
-function classifyZone1d(
-  pointPct: number,
-  refPct: number,
-  isReference: boolean,
-): Zone {
-  if (isReference) return 'wr'
-  if (pointPct < refPct - 0.05) return 'dominator'
-  if (pointPct > refPct + 0.05) return 'dominated'
-  return 'tradeoff'
-}
-
-type Stats1d = {
-  refPct: number
-  selectedPct: number
-  wrPct: number
-  nBetter: number
-  nWorse: number
-  pctBetter: number
-  pctWorse: number
-}
-
-function statsFor1d(
-  rows: DominanceRow[],
-  reference: ReferencePoint,
-  selectedSimIndex: number,
-  percentiles: PercentileData,
-  refStdPct: number,
-  wrSimIndex: number,
-): Stats1d {
-  let nBetter = 0
-  let nWorse = 0
-  const comparable =
-    reference.simIndex != null ? rows.length - 1 : rows.length
-
-  for (const row of rows) {
-    if (reference.simIndex != null && row.sim_index === reference.simIndex) {
-      continue
-    }
-    const pct = percentiles.standardized.get(row.sim_index) ?? 50
-    if (pct < refStdPct - 0.05) nBetter++
-    else if (pct > refStdPct + 0.05) nWorse++
-  }
-
-  const pct = (n: number) =>
-    comparable === 0 ? 0 : Math.round((1000 * n) / comparable) / 10
-
-  return {
-    refPct: refStdPct,
-    selectedPct: percentiles.standardized.get(selectedSimIndex) ?? 50,
-    wrPct: percentiles.standardized.get(wrSimIndex) ?? 50,
-    nBetter,
-    nWorse,
-    pctBetter: pct(nBetter),
-    pctWorse: pct(nWorse),
-  }
-}
-
-const BOUNDS_1D: Viewport = { xMin: -2, xMax: 102, yMin: 0, yMax: 1 }
-
 function parseDropSlot(value: string): number | null {
   const n = Number.parseInt(value.trim(), 10)
   if (!Number.isInteger(n) || n < 1 || n > 25) return null
@@ -489,7 +374,7 @@ function DropSlotInput({
     'flex flex-1 items-center justify-center bg-gray-800 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100 active:bg-gray-600'
 
   return (
-    <label className="flex flex-col items-center gap-1 text-[10px] text-gray-400">
+    <label className="flex flex-col items-center gap-1.5 text-ui-sm text-gray-400 min-[1920px]:gap-2 min-[1920px]:text-ui-base">
       {label}
       <div className="flex overflow-hidden rounded border border-gray-600 bg-gray-900">
         <input
@@ -510,9 +395,9 @@ function DropSlotInput({
               step(-1)
             }
           }}
-          className="w-9 border-0 bg-transparent px-1 py-0.5 text-center text-xs text-gray-100 outline-none"
+          className="w-10 border-0 bg-transparent px-1 py-1 text-center text-ui-base text-gray-100 outline-none min-[1920px]:w-12 min-[1920px]:py-1.5 min-[1920px]:text-ui-lg"
         />
-        <div className="flex w-4 flex-col border-l border-gray-600">
+        <div className="flex w-5 flex-col border-l border-gray-600 min-[1920px]:w-6">
           <button
             type="button"
             tabIndex={-1}
@@ -520,7 +405,7 @@ function DropSlotInput({
             onClick={() => step(1)}
             className={`${stepperBtn} border-b border-gray-600`}
           >
-            <svg viewBox="0 0 8 5" className="h-2 w-2 fill-current" aria-hidden>
+            <svg viewBox="0 0 8 5" className="h-2.5 w-2.5 fill-current min-[1920px]:h-3 min-[1920px]:w-3" aria-hidden>
               <path d="M4 0 8 5H0Z" />
             </svg>
           </button>
@@ -531,7 +416,7 @@ function DropSlotInput({
             onClick={() => step(-1)}
             className={stepperBtn}
           >
-            <svg viewBox="0 0 8 5" className="h-2 w-2 fill-current" aria-hidden>
+            <svg viewBox="0 0 8 5" className="h-2.5 w-2.5 fill-current min-[1920px]:h-3 min-[1920px]:w-3" aria-hidden>
               <path d="M0 0h8L4 5Z" />
             </svg>
           </button>
@@ -596,8 +481,8 @@ function DropLookup({
   }
 
   return (
-    <div className="flex shrink-0 flex-col items-center gap-1.5">
-      <div className="flex flex-col items-center gap-1.5">
+    <div className="flex shrink-0 flex-col items-center gap-2 min-[1920px]:gap-2.5">
+      <div className="flex flex-col items-center gap-2 min-[1920px]:gap-2.5">
         <DropSlotInput
           label="Bird 0"
           value={bird0}
@@ -625,11 +510,11 @@ function DropLookup({
           />
         )}
       </div>
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center gap-1.5 min-[1920px]:gap-2">
         <button
           type="button"
           onClick={onSetReference}
-          className="rounded border border-gray-600 bg-gray-800 px-2 py-0.5 text-[10px] text-gray-200 hover:bg-gray-700"
+          className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-ui-base text-gray-200 hover:bg-gray-700 min-[1920px]:px-4 min-[1920px]:py-1.5 min-[1920px]:text-ui-lg"
         >
           Set reference
         </button>
@@ -637,7 +522,7 @@ function DropLookup({
           type="button"
           onClick={onResetReference}
           disabled={referenceIsWr}
-          className="rounded border border-gray-600 bg-gray-800 px-2 py-0.5 text-[10px] text-gray-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:border-gray-700 disabled:bg-gray-900 disabled:text-gray-500 disabled:hover:bg-gray-900"
+          className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-ui-base text-gray-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:border-gray-700 disabled:bg-gray-900 disabled:text-gray-500 disabled:hover:bg-gray-900 min-[1920px]:px-4 min-[1920px]:py-1.5 min-[1920px]:text-ui-lg"
         >
           Reset to WR
         </button>
@@ -686,7 +571,6 @@ const ScatterCanvas = memo(function ScatterCanvas({
   plotW,
   plotH,
   svgH,
-  oneD = false,
   onSelect,
 }: {
   points: PlotPoint[]
@@ -695,7 +579,6 @@ const ScatterCanvas = memo(function ScatterCanvas({
   plotW: number
   plotH: number
   svgH: number
-  oneD?: boolean
   onSelect: (simIndex: number) => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -721,12 +604,12 @@ const ScatterCanvas = memo(function ScatterCanvas({
       ctx.globalAlpha = style.opacity
       ctx.fillStyle = style.fill
       ctx.beginPath()
-      ctx.arc(point.cx, point.cy, oneD ? Math.min(style.r, 4) : style.r, 0, Math.PI * 2)
+      ctx.arc(point.cx, point.cy, style.r, 0, Math.PI * 2)
       ctx.fill()
     }
     ctx.restore()
     ctx.globalAlpha = 1
-  }, [points, plotLeft, plotTop, plotW, plotH, svgH, oneD])
+  }, [points, plotLeft, plotTop, plotW, plotH, svgH])
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = ref.current
@@ -736,11 +619,9 @@ const ScatterCanvas = memo(function ScatterCanvas({
     const my = ((e.clientY - rect.top) / rect.height) * svgH
 
     let best: PlotPoint | null = null
-    let bestDist = oneD ? 14 : 10
+    let bestDist = 10
     for (const point of points) {
-      const dist = oneD
-        ? Math.abs(point.cx - mx)
-        : Math.hypot(point.cx - mx, point.cy - my)
+      const dist = Math.hypot(point.cx - mx, point.cy - my)
       if (dist < bestDist) {
         bestDist = dist
         best = point
@@ -812,25 +693,17 @@ function CyclePanel({
   onResetReference: () => void
 }) {
   const plotRef = useRef<HTMLDivElement>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('2d')
   const plotW = W - PAD.left - PAD.right
   const plotH = H - PAD.top - PAD.bottom
-  const lineY = PAD.top + plotH / 2
 
-  const fullBounds2d = useMemo(() => boundsFromRows(rows), [rows])
-  const fullBounds = viewMode === '2d' ? fullBounds2d : BOUNDS_1D
+  const fullBounds = useMemo(() => boundsFromRows(rows), [rows])
   const fullBoundsRef = useRef(fullBounds)
-  const [viewport2d, setViewport2d] = useState(fullBounds2d)
-  const [viewport1d, setViewport1d] = useState(BOUNDS_1D)
-  const viewport = viewMode === '2d' ? viewport2d : viewport1d
+  const [viewport, setViewport] = useState(fullBounds)
   const viewportRef = useRef(viewport)
-  const viewModeRef = useRef(viewMode)
-  const percentiles = useMemo(() => buildPercentileData(rows), [rows])
 
   useEffect(() => {
     fullBoundsRef.current = fullBounds
     viewportRef.current = viewport
-    viewModeRef.current = viewMode
   })
 
   const dense = rows.length > 600
@@ -839,44 +712,8 @@ function CyclePanel({
     () => statsForReference(rows, reference),
     [rows, reference],
   )
-  const refStdPct = useMemo(
-    () => referenceStandardizedPercentile(reference, rows, percentiles),
-    [reference, rows, percentiles],
-  )
-  const stats1d = useMemo(
-    () =>
-      wr
-        ? statsFor1d(
-            rows,
-            reference,
-            selectedSimIndex,
-            percentiles,
-            refStdPct,
-            wr.sim_index,
-          )
-        : null,
-    [rows, reference, selectedSimIndex, percentiles, refStdPct, wr],
-  )
 
   const points = useMemo(() => {
-    if (viewMode === '1d') {
-      const xScale = scaleLinear(
-        [viewport.xMin, viewport.xMax],
-        [PAD.left, PAD.left + plotW],
-      )
-      return rows.map((row) => {
-        const stdPct = percentiles.standardized.get(row.sim_index) ?? 50
-        return {
-          sim_index: row.sim_index,
-          cx: xScale(stdPct),
-          cy: lineY,
-          zone: row.is_wr
-            ? 'wr'
-            : classifyZone1d(stdPct, refStdPct, false),
-        }
-      })
-    }
-
     const xScale = scaleLinear(
       [viewport.xMin, viewport.xMax],
       [PAD.left, PAD.left + plotW],
@@ -899,7 +736,7 @@ function CyclePanel({
             false,
           ),
     }))
-  }, [rows, reference, viewport, plotW, plotH, lineY, viewMode, percentiles, refStdPct])
+  }, [rows, reference, viewport, plotW, plotH])
 
   useEffect(() => {
     const el = plotRef.current
@@ -912,27 +749,8 @@ function CyclePanel({
       const py = ((e.clientY - rect.top) / rect.height) * H
       const current = viewportRef.current
       const scale = Math.exp(e.deltaY * 0.001)
-
-      if (viewModeRef.current === '1d') {
-        const xRatio = (px - PAD.left) / plotW
-        const anchorX =
-          current.xMin + xRatio * (current.xMax - current.xMin)
-        setViewport1d((v) => {
-          const xSpan = v.xMax - v.xMin
-          const newXSpan = xSpan * scale
-          const xRatio2 = (anchorX - v.xMin) / (xSpan || 1)
-          const next = {
-            ...v,
-            xMin: anchorX - newXSpan * xRatio2,
-            xMax: anchorX + newXSpan * (1 - xRatio2),
-          }
-          return clampViewport(next, fullBoundsRef.current)
-        })
-        return
-      }
-
       const { spread, frame } = pixelToData(px, py, current, plotW, plotH)
-      setViewport2d((v) =>
+      setViewport((v) =>
         zoomViewport(v, fullBoundsRef.current, spread, frame, scale),
       )
     }
@@ -967,7 +785,6 @@ function CyclePanel({
     }
 
     const updateFromClient = (clientX: number, clientY: number) => {
-      if (viewModeRef.current === '1d') return
       const rect = el.getBoundingClientRect()
       const px = ((clientX - rect.left) / rect.width) * W
       const py = ((clientY - rect.top) / rect.height) * H
@@ -1040,21 +857,16 @@ function CyclePanel({
     [viewport.yMin, viewport.yMax],
     [PAD.top + plotH, PAD.top],
   )
-  const xTicks =
-    viewMode === '1d'
-      ? axisTicks(Math.max(0, viewport.xMin), Math.min(100, viewport.xMax))
-      : axisTicks(viewport.xMin, viewport.xMax)
-  const yTicks = viewMode === '2d' ? axisTicks(viewport.yMin, viewport.yMax) : []
+  const xTicks = axisTicks(viewport.xMin, viewport.xMax)
+  const yTicks = axisTicks(viewport.yMin, viewport.yMax)
   const plotClipId = `plot-clip-${cycle}`
   const overlayClipId = `overlay-clip-${cycle}`
-  const toggleClass = (active: boolean) =>
-    `px-1.5 py-0.5 ${active ? 'bg-gray-700 text-gray-100' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`
 
   return (
     <div className="flex w-full flex-col items-center">
-      <p className="mb-1.5 text-[12px] text-gray-300">
+      <p className="mb-2 text-ui-lg text-gray-300 min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
         1 in{' '}
-        <span className="font-medium text-gray-100">
+        <span className="font-semibold text-gray-100">
           {oneInXForCycle(
             displayStats,
             rows.length,
@@ -1069,24 +881,8 @@ function CyclePanel({
       <div className="flex items-center gap-1">
       <div
         ref={plotRef}
-        className="relative size-[400px] max-w-full shrink-0"
+        className="relative size-viz max-w-full shrink-0"
       >
-        <div className="absolute top-1 right-1.5 z-10 flex overflow-hidden rounded border border-gray-600 text-[9px]">
-          <button
-            type="button"
-            onClick={() => setViewMode('2d')}
-            className={toggleClass(viewMode === '2d')}
-          >
-            2D
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('1d')}
-            className={toggleClass(viewMode === '1d')}
-          >
-            1D
-          </button>
-        </div>
         {dense && (
           <ScatterCanvas
             points={points}
@@ -1095,7 +891,6 @@ function CyclePanel({
             plotW={plotW}
             plotH={plotH}
             svgH={H}
-            oneD={viewMode === '1d'}
             onSelect={onSelect}
           />
         )}
@@ -1129,26 +924,14 @@ function CyclePanel({
             stroke="#888888"
             strokeWidth={1}
           />
-          {viewMode === '1d' && (
-            <line
-              x1={plotLeft}
-              x2={plotRight}
-              y1={lineY}
-              y2={lineY}
-              stroke="#666666"
-              strokeWidth={1.5}
-            />
-          )}
-          {viewMode === '2d' && (
-            <line
-              x1={plotLeft}
-              x2={plotLeft}
-              y1={plotTop}
-              y2={plotBottom}
-              stroke="#888888"
-              strokeWidth={1}
-            />
-          )}
+          <line
+            x1={plotLeft}
+            x2={plotLeft}
+            y1={plotTop}
+            y2={plotBottom}
+            stroke="#888888"
+            strokeWidth={1}
+          />
 
           {xTicks.map((tick) => (
             <g key={`x-${tick}`}>
@@ -1166,7 +949,7 @@ function CyclePanel({
                 textAnchor="middle"
                 className="fill-gray-400 text-[8px]"
               >
-                {viewMode === '1d' ? formatPercentTick(tick) : formatTick(tick)}
+                {formatTick(tick)}
               </text>
             </g>
           ))}
@@ -1193,8 +976,7 @@ function CyclePanel({
             </g>
           ))}
 
-          {viewMode === '2d' &&
-            reference.spread >= viewport.xMin &&
+          {reference.spread >= viewport.xMin &&
             reference.spread <= viewport.xMax && (
               <g>
                 <line
@@ -1216,8 +998,7 @@ function CyclePanel({
               </g>
             )}
 
-          {viewMode === '2d' &&
-            reference.frame >= viewport.yMin &&
+          {reference.frame >= viewport.yMin &&
             reference.frame <= viewport.yMax && (
               <g>
                 <line
@@ -1240,29 +1021,6 @@ function CyclePanel({
               </g>
             )}
 
-          {viewMode === '1d' &&
-            refStdPct >= viewport.xMin &&
-            refStdPct <= viewport.xMax && (
-              <g>
-                <line
-                  x1={x(refStdPct)}
-                  x2={x(refStdPct)}
-                  y1={plotBottom}
-                  y2={plotBottom + 6}
-                  stroke="#aaaaaa"
-                  strokeWidth={1.25}
-                />
-                <text
-                  x={x(refStdPct)}
-                  y={plotBottom + 16}
-                  textAnchor="middle"
-                  className="fill-gray-300 text-[8px] font-medium"
-                >
-                  {formatPercentTick(refStdPct)}
-                </text>
-              </g>
-            )}
-
           {!dense && (
             <ScatterSvg
               points={points}
@@ -1272,65 +1030,38 @@ function CyclePanel({
             />
           )}
 
-          {viewMode === '2d' && (
-            <g clipPath={`url(#${overlayClipId})`}>
-              {selectedPoint && (
-                <circle
-                  cx={selectedPoint.cx}
-                  cy={selectedPoint.cy}
-                  r={selectedStyle.r}
-                  fill={selectedStyle.fill}
-                  fillOpacity={selectedStyle.opacity}
-                  stroke="#ffffff"
-                  strokeWidth={2}
-                />
-              )}
+          <g clipPath={`url(#${overlayClipId})`}>
+            {selectedPoint && (
+              <circle
+                cx={selectedPoint.cx}
+                cy={selectedPoint.cy}
+                r={selectedStyle.r}
+                fill={selectedStyle.fill}
+                fillOpacity={selectedStyle.opacity}
+                stroke="#ffffff"
+                strokeWidth={2}
+              />
+            )}
 
-              <line
-                x1={x(reference.spread)}
-                x2={x(reference.spread)}
-                y1={plotTop}
-                y2={plotBottom}
-                stroke="#aaaaaa"
-                strokeWidth={0.8}
-                strokeDasharray="4 3"
-              />
-              <line
-                x1={plotLeft}
-                x2={plotRight}
-                y1={y(reference.frame)}
-                y2={y(reference.frame)}
-                stroke="#aaaaaa"
-                strokeWidth={0.8}
-                strokeDasharray="4 3"
-              />
-            </g>
-          )}
-
-          {viewMode === '1d' && (
-            <g clipPath={`url(#${overlayClipId})`}>
-              {selectedPoint && (
-                <circle
-                  cx={selectedPoint.cx}
-                  cy={selectedPoint.cy}
-                  r={selectedStyle.r}
-                  fill={selectedStyle.fill}
-                  fillOpacity={selectedStyle.opacity}
-                  stroke="#ffffff"
-                  strokeWidth={2}
-                />
-              )}
-              <line
-                x1={x(refStdPct)}
-                x2={x(refStdPct)}
-                y1={plotTop}
-                y2={plotBottom}
-                stroke="#aaaaaa"
-                strokeWidth={0.8}
-                strokeDasharray="4 3"
-              />
-            </g>
-          )}
+            <line
+              x1={x(reference.spread)}
+              x2={x(reference.spread)}
+              y1={plotTop}
+              y2={plotBottom}
+              stroke="#aaaaaa"
+              strokeWidth={0.8}
+              strokeDasharray="4 3"
+            />
+            <line
+              x1={plotLeft}
+              x2={plotRight}
+              y1={y(reference.frame)}
+              y2={y(reference.frame)}
+              stroke="#aaaaaa"
+              strokeWidth={0.8}
+              strokeDasharray="4 3"
+            />
+          </g>
 
           <rect
             x={PAD.left + 4}
@@ -1341,69 +1072,29 @@ function CyclePanel({
             fillOpacity={0.7}
             rx={2}
           />
-          {viewMode === '2d' ? (
-            <>
-              <text
-                x={PAD.left + 10}
-                y={PAD.top + 18}
-                className="fill-gray-200 text-[8px]"
-              >
-                Dominators: {displayStats.n_dominators} ({displayStats.pct_dominators}%)
-              </text>
-              <text
-                x={PAD.left + 10}
-                y={PAD.top + 32}
-                className="fill-gray-200 text-[8px]"
-              >
-                Tradeoff: {displayStats.n_tradeoff} ({displayStats.pct_tradeoff}%)
-              </text>
-              <text
-                x={PAD.left + 10}
-                y={PAD.top + 46}
-                className="fill-gray-200 text-[8px]"
-              >
-                Dominated: {displayStats.n_dominated} ({displayStats.pct_dominated}%)
-              </text>
-            </>
-          ) : stats1d && (
-            <>
-              <text
-                x={PAD.left + 10}
-                y={PAD.top + 16}
-                className="fill-gray-200 text-[8px]"
-              >
-                Ref: {formatPercentTick(stats1d.refPct)}
-              </text>
-              <text
-                x={PAD.left + 10}
-                y={PAD.top + 28}
-                className="fill-gray-200 text-[8px]"
-              >
-                Selected: {formatPercentTick(stats1d.selectedPct)}
-              </text>
-              <text
-                x={PAD.left + 10}
-                y={PAD.top + 40}
-                className="fill-gray-200 text-[8px]"
-              >
-                WR: {formatPercentTick(stats1d.wrPct)}
-              </text>
-              <text
-                x={PAD.left + 10}
-                y={PAD.top + 52}
-                className="fill-gray-200 text-[8px]"
-              >
-                Better: {stats1d.nBetter.toLocaleString()} ({stats1d.pctBetter}%)
-              </text>
-              <text
-                x={PAD.left + 10}
-                y={PAD.top + 64}
-                className="fill-gray-200 text-[8px]"
-              >
-                Worse: {stats1d.nWorse.toLocaleString()} ({stats1d.pctWorse}%)
-              </text>
-            </>
-          )}
+          <>
+            <text
+              x={PAD.left + 10}
+              y={PAD.top + 18}
+              className="fill-gray-200 text-[8px]"
+            >
+              Dominators: {displayStats.n_dominators} ({displayStats.pct_dominators}%)
+            </text>
+            <text
+              x={PAD.left + 10}
+              y={PAD.top + 32}
+              className="fill-gray-200 text-[8px]"
+            >
+              Tradeoff: {displayStats.n_tradeoff} ({displayStats.pct_tradeoff}%)
+            </text>
+            <text
+              x={PAD.left + 10}
+              y={PAD.top + 46}
+              className="fill-gray-200 text-[8px]"
+            >
+              Dominated: {displayStats.n_dominated} ({displayStats.pct_dominated}%)
+            </text>
+          </>
 
           <text
             x={W / 2}
@@ -1411,19 +1102,17 @@ function CyclePanel({
             textAnchor="middle"
             className="fill-gray-400 text-[10px]"
           >
-            {viewMode === '1d' ? 'Standardized percentile' : 'Spread'}
+            Spread
           </text>
-          {viewMode === '2d' && (
-            <text
-              x={12}
-              y={H / 2}
-              textAnchor="middle"
-              transform={`rotate(-90 12 ${H / 2})`}
-              className="fill-gray-400 text-[10px]"
-            >
-              Cycle complete frame
-            </text>
-          )}
+          <text
+            x={12}
+            y={H / 2}
+            textAnchor="middle"
+            transform={`rotate(-90 12 ${H / 2})`}
+            className="fill-gray-400 text-[10px]"
+          >
+            Cycle complete frame
+          </text>
         </svg>
       </div>
       <DropLookup
@@ -1496,7 +1185,7 @@ export function DominancePlots({
   )
 
   const calculationButtonClass = (active: boolean) =>
-    `rounded border px-3 py-1 text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-gray-400 ${
+    `rounded border px-4 py-1.5 text-ui-base min-[1920px]:px-5 min-[1920px]:py-2 min-[1920px]:text-ui-lg outline-none focus-visible:ring-1 focus-visible:ring-gray-400 ${
       active
         ? 'border-gray-400 bg-gray-600 text-gray-50'
         : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
@@ -1573,19 +1262,6 @@ export function DominancePlots({
     [cycles],
   )
 
-  const handleSetWrCalculation = useCallback(() => {
-    const wrReference = defaultWrReference(rows, cycles)
-    setReference(wrReference)
-    setSelected((prev) => {
-      const next = { ...prev }
-      for (const cycle of cycles) {
-        const simIndex = wrReference[cycle]?.simIndex
-        if (simIndex != null) next[cycle] = simIndex
-      }
-      return next
-    })
-  }, [rows, cycles])
-
   const referenceStats = useMemo(
     () =>
       cycles.map((cycle) => ({
@@ -1603,13 +1279,14 @@ export function DominancePlots({
   )
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="mb-6 flex flex-wrap items-center justify-center gap-y-2">
+    <>
+      <div className="flex flex-col items-center pb-32 min-[1920px]:pb-44">
+        <div className="mb-6 flex flex-wrap items-center justify-center gap-x-1 gap-y-3 min-[1920px]:mb-8 min-[1920px]:gap-y-4">
         {referencePresets.map((preset, i) => (
           <Fragment key={preset.id}>
             {i > 0 && (
               <div
-                className="mx-2 h-4 w-px shrink-0 bg-gray-600"
+                className="mx-2 h-4 w-px shrink-0 bg-gray-600 min-[1920px]:h-6"
                 aria-hidden
               />
             )}
@@ -1625,20 +1302,6 @@ export function DominancePlots({
             </button>
           </Fragment>
         ))}
-        <div
-          className="mx-2 h-4 w-px shrink-0 bg-gray-600"
-          aria-hidden
-        />
-        <button
-          type="button"
-          onClick={(e) => {
-            handleSetWrCalculation()
-            e.currentTarget.blur()
-          }}
-          className={calculationButtonClass(activeCalculation === 'wr')}
-        >
-          {wrCalculationLabel}
-        </button>
       </div>
       {cycles.map((cycle, i) => (
         <div key={cycle} className="flex w-full flex-col items-center">
@@ -1658,10 +1321,10 @@ export function DominancePlots({
       ))}
       {cycles.length > 0 && (
         <div className="mt-8 w-full max-w-2xl border-t border-gray-600 pt-6 text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-gray-200">
+          <p className="text-ui-md font-semibold uppercase tracking-wider text-gray-200">
             All cycles back to back calculation:
           </p>
-          <p className="mt-2 text-[15px] text-gray-200">
+          <p className="mt-2 text-ui-lg text-gray-200">
             <CombinedOddsExpression inputs={referenceStats} /> ={' '}
             <span className="font-semibold text-gray-50">
               1 in {combined.oneInX}
@@ -1669,6 +1332,22 @@ export function DominancePlots({
           </p>
         </div>
       )}
-    </div>
+      </div>
+      {cycles.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-gray-500 bg-[#1c1d24]/98 px-4 py-4 shadow-[0_-12px_40px_rgba(0,0,0,0.55)] backdrop-blur-sm min-[1920px]:px-8 min-[1920px]:py-5">
+          <div className="mx-auto max-w-5xl text-center min-[1920px]:max-w-7xl">
+            <p className="text-ui-lg font-bold uppercase tracking-widest text-gray-50">
+              Total probability calculation:
+            </p>
+            <p className="mt-2 text-ui-lg leading-snug text-gray-200">
+              <CombinedOddsExpression inputs={referenceStats} /> ={' '}
+              <span className="text-ui-xl font-bold text-white">
+                1 in {combined.oneInX}
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

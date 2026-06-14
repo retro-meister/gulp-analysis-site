@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { ArenaMap } from './ArenaMap'
 import { CYCLE_FRAME_OFFSET, toDisplayFrame } from './cycleFrames'
 import { loadTrajectory, rowBirdAssignments, type DominanceRow, type TrajectoryData } from './db'
-import { ARENA_SIZE } from './arenaProjection'
 
 const FRAME_MS = 1000 / 30
 
@@ -150,8 +149,7 @@ export function TrajectoryPlayback({
 
   return (
     <div
-      className="flex flex-col items-center gap-1.5"
-      style={{ width: ARENA_SIZE }}
+      className="flex w-viz flex-col items-center gap-2 min-[1920px]:gap-2.5"
       onPointerDown={onActivate}
     >
       <ArenaMap
@@ -159,12 +157,12 @@ export function TrajectoryPlayback({
         playbackFrame={playbackFrame}
         birds={birds}
       />
-      <div className="flex w-full items-center gap-2">
+      <div className="flex w-full items-center gap-2.5 min-[1920px]:gap-3">
         <button
           type="button"
           onClick={togglePlayback}
           disabled={loading}
-          className="shrink-0 rounded border border-gray-600 bg-gray-800 px-2.5 py-0.5 text-[10px] text-gray-200 hover:bg-gray-700 disabled:opacity-50"
+          className="shrink-0 rounded border border-gray-600 bg-gray-800 px-3 py-1 text-ui-base text-gray-200 hover:bg-gray-700 disabled:opacity-50 min-[1920px]:px-4 min-[1920px]:py-1.5 min-[1920px]:text-ui-lg"
         >
           {loading ? 'Loading…' : playing ? 'Pause' : 'Play'}
         </button>
@@ -178,9 +176,9 @@ export function TrajectoryPlayback({
             if (!trajectory && !loading) void ensureTrajectory()
           }}
           onChange={(e) => void handleScrub(Number(e.target.value))}
-          className="h-1 min-w-0 flex-1 cursor-pointer accent-sky-400 disabled:opacity-40"
+          className="h-1.5 min-w-0 flex-1 cursor-pointer accent-sky-400 disabled:opacity-40 min-[1920px]:h-2.5"
         />
-        <span className="w-14 shrink-0 text-right font-mono text-[10px] tabular-nums text-gray-400">
+        <span className="w-16 shrink-0 text-right font-mono text-ui-base tabular-nums text-gray-400 min-[1920px]:w-20 min-[1920px]:text-ui-lg">
           {trajectory
             ? `${toDisplayFrame(frame)}/${displayMaxFrame(trajectory.maxFrame)}`
             : loading
@@ -188,7 +186,7 @@ export function TrajectoryPlayback({
               : '—/—'}
         </span>
       </div>
-      {error && <p className="text-[10px] text-red-400">{error}</p>}
+      {error && <p className="text-ui-base text-red-400 min-[1920px]:text-ui-lg">{error}</p>}
     </div>
   )
 }
