@@ -14,6 +14,64 @@ const W = 400
 const H = 400
 const LATE_CYCLE_CHANCE_PCT = 38.63
 
+const LATE_CYCLE_WEAPON_CONFIGS = [
+  { config: 'bbb', perms: 1, pct: 6.69, tripleable: false },
+  { config: 'bbB', perms: 3, pct: 19.58, tripleable: false },
+  { config: 'bbR', perms: 3, pct: 9.79, tripleable: false },
+  { config: 'bBB', perms: 3, pct: 19.1, tripleable: false },
+  { config: 'bBR', perms: 6, pct: 19.1, tripleable: true },
+  { config: 'bRR', perms: 3, pct: 4.78, tripleable: true },
+  { config: 'BBB', perms: 1, pct: 6.21, tripleable: false },
+  { config: 'BBR', perms: 3, pct: 9.32, tripleable: true },
+  { config: 'BRR', perms: 3, pct: 4.66, tripleable: true },
+  { config: 'RRR', perms: 1, pct: 0.78, tripleable: true },
+] as const
+
+function LateCycleChanceLabel() {
+  return (
+    <span className="group/late relative inline cursor-help bg-[length:5px_2px] bg-bottom bg-repeat-x pb-0.5 transition-colors [background-image:radial-gradient(circle,rgb(107_114_128)_1px,transparent_1px)] hover:text-gray-50 hover:[background-image:radial-gradient(circle,rgb(209_213_219)_1px,transparent_1px)]">
+      {LATE_CYCLE_CHANCE_PCT}%
+      <span
+        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-72 -translate-x-1/2 rounded border border-gray-600 bg-gray-950 p-3 text-left text-[10px] font-normal normal-case tracking-normal text-gray-300 no-underline shadow-xl group-hover/late:block"
+        role="tooltip"
+      >
+        <p className="text-gray-100">
+          b = bomb, B = barrel, R = rocket
+        </p>
+        <div className="my-2 h-px w-full bg-gray-600" aria-hidden />
+        <table className="w-full border-collapse text-[9px]">
+          <thead>
+            <tr className="text-gray-100">
+              <th className="pb-1 pr-2 text-left font-normal">Config</th>
+              <th className="pb-1 pr-2 text-right font-normal">Permutations</th>
+              <th className="pb-1 pr-2 text-right font-normal">%</th>
+              <th className="pb-1 text-right font-normal">Tripleable</th>
+            </tr>
+          </thead>
+          <tbody>
+            {LATE_CYCLE_WEAPON_CONFIGS.map((row) => (
+              <tr
+                key={row.config}
+                className={row.tripleable ? 'text-gray-100' : 'text-gray-500'}
+              >
+                <td className="py-0.5 pr-2 font-mono">{row.config}</td>
+                <td className="py-0.5 pr-2 text-right tabular-nums">{row.perms}</td>
+                <td className="py-0.5 pr-2 text-right tabular-nums">
+                  {row.pct.toFixed(2)}%
+                </td>
+                <td className="py-0.5 text-right">{row.tripleable ? 'Yes' : 'No'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-2 text-gray-400">
+          Tripleable rows sum to {LATE_CYCLE_CHANCE_PCT}%.
+        </p>
+      </span>
+    </span>
+  )
+}
+
 type PlotPoint = {
   sim_index: number
   cx: number
@@ -252,20 +310,30 @@ function combinedDominatorChance(inputs: CycleOddsInput[]): {
   }
 }
 
-function formatCombinedOddsExpression(inputs: CycleOddsInput[]): string {
-  return inputs
-    .map((input) => {
-      const factor = formatCycleOddsFactor(
-        input.stats,
-        input.totalPermutations,
-        input.hasSpecificAssignment,
-      )
-      if (input.cycle >= 3) {
-        return `(${factor} × ${LATE_CYCLE_CHANCE_PCT}%)`
-      }
-      return factor
-    })
-    .join(' × ')
+function CombinedOddsExpression({ inputs }: { inputs: CycleOddsInput[] }) {
+  return (
+    <>
+      {inputs.map((input, i) => {
+        const factor = formatCycleOddsFactor(
+          input.stats,
+          input.totalPermutations,
+          input.hasSpecificAssignment,
+        )
+        return (
+          <Fragment key={input.cycle}>
+            {i > 0 && ' × '}
+            {input.cycle >= 3 ? (
+              <>
+                ({factor} × <LateCycleChanceLabel />)
+              </>
+            ) : (
+              factor
+            )}
+          </Fragment>
+        )
+      })}
+    </>
+  )
 }
 
 type ViewMode = '2d' | '1d'
@@ -1594,8 +1662,7 @@ export function DominancePlots({
             All cycles back to back
           </p>
           <p className="mt-2 text-[15px] text-gray-200">
-            {formatCombinedOddsExpression(referenceStats)}{' '}
-            ={' '}
+            <CombinedOddsExpression inputs={referenceStats} /> ={' '}
             <span className="font-semibold text-gray-50">
               1 in {combined.oneInX}
             </span>
