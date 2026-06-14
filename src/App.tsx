@@ -23,7 +23,7 @@ function App() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 min-[1920px]:max-w-7xl min-[1920px]:px-8 min-[1920px]:py-12">
+    <div className="mx-auto min-w-0 max-w-5xl overflow-x-hidden px-3 py-6 sm:px-4 sm:py-8 min-[1920px]:max-w-7xl min-[1920px]:px-8 min-[1920px]:py-12">
       <DominancePlots rows={data.rows} stats={data.stats} />
     </div>
   )

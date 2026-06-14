@@ -864,7 +864,7 @@ function CyclePanel({
 
   return (
     <div className="flex w-full flex-col items-center">
-      <p className="mb-2 text-ui-lg text-gray-300 min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
+      <p className="mb-2 max-w-full px-1 text-center text-ui-base text-gray-300 sm:text-ui-lg min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
         1 in{' '}
         <span className="font-semibold text-gray-100">
           {oneInXForCycle(
@@ -878,10 +878,10 @@ function CyclePanel({
           ({displayStats.pct_dominators}% dominators)
         </span>
       </p>
-      <div className="flex items-center gap-1">
+      <div className="flex w-full min-w-0 max-w-full flex-col items-center gap-4 xl:flex-row xl:items-center xl:justify-center xl:gap-1">
       <div
         ref={plotRef}
-        className="relative size-viz max-w-full shrink-0"
+        className="relative size-viz w-full"
       >
         {dense && (
           <ScatterCanvas
@@ -1185,7 +1185,7 @@ export function DominancePlots({
   )
 
   const calculationButtonClass = (active: boolean) =>
-    `rounded border px-4 py-1.5 text-ui-base min-[1920px]:px-5 min-[1920px]:py-2 min-[1920px]:text-ui-lg outline-none focus-visible:ring-1 focus-visible:ring-gray-400 ${
+    `rounded border px-3 py-1.5 text-ui-sm outline-none focus-visible:ring-1 focus-visible:ring-gray-400 sm:px-4 sm:text-ui-base min-[1920px]:px-5 min-[1920px]:py-2 min-[1920px]:text-ui-lg ${
       active
         ? 'border-gray-400 bg-gray-600 text-gray-50'
         : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
@@ -1280,8 +1280,8 @@ export function DominancePlots({
 
   return (
     <>
-      <div className="flex flex-col items-center pb-32 min-[1920px]:pb-44">
-        <div className="mb-6 flex flex-wrap items-center justify-center gap-x-1 gap-y-3 min-[1920px]:mb-8 min-[1920px]:gap-y-4">
+      <div className="flex w-full min-w-0 flex-col items-center pb-36 sm:pb-32 min-[1920px]:pb-44">
+        <div className="mb-4 flex w-full min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-2 sm:mb-6 sm:gap-y-3 min-[1920px]:mb-8 min-[1920px]:gap-y-4">
         {referencePresets.map((preset, i) => (
           <Fragment key={preset.id}>
             {i > 0 && (
@@ -1334,14 +1334,14 @@ export function DominancePlots({
       )}
       </div>
       {cycles.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-gray-500 bg-[#1c1d24]/98 px-4 py-4 shadow-[0_-12px_40px_rgba(0,0,0,0.55)] backdrop-blur-sm min-[1920px]:px-8 min-[1920px]:py-5">
-          <div className="mx-auto max-w-5xl text-center min-[1920px]:max-w-7xl">
-            <p className="text-ui-lg font-bold uppercase tracking-widest text-gray-50">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-gray-500 bg-[#1c1d24]/98 px-3 py-3 shadow-[0_-12px_40px_rgba(0,0,0,0.55)] backdrop-blur-sm sm:px-4 sm:py-4 min-[1920px]:px-8 min-[1920px]:py-5">
+          <div className="mx-auto min-w-0 max-w-5xl text-center min-[1920px]:max-w-7xl">
+            <p className="text-ui-sm font-bold uppercase tracking-wider text-gray-50 sm:text-ui-lg min-[1920px]:tracking-widest">
               Total probability calculation:
             </p>
-            <p className="mt-2 text-ui-lg leading-snug text-gray-200">
+            <p className="mt-1.5 break-words text-ui-2sm leading-snug text-gray-200 sm:mt-2 sm:text-ui-lg">
               <CombinedOddsExpression inputs={referenceStats} /> ={' '}
-              <span className="text-ui-xl font-bold text-white">
+              <span className="text-ui-base font-bold text-white sm:text-ui-xl">
                 1 in {combined.oneInX}
               </span>
             </p>

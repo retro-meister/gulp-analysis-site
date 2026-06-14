@@ -32,12 +32,15 @@
 
 @layer utilities {
   .size-viz {
-    width: var(--viz-size);
-    height: var(--viz-size);
+    width: min(var(--viz-size), 100%);
+    max-width: 100%;
+    aspect-ratio: 1;
+    height: auto;
   }
 
   .w-viz {
-    width: var(--viz-size);
+    width: min(var(--viz-size), 100%);
+    max-width: 100%;
   }
 
   .text-ui-2xs {
@@ -83,10 +86,10 @@
 
 @layer base {
   body {
-    @apply m-0 bg-[#16171d] font-sans text-gray-200;
+    @apply m-0 overflow-x-hidden bg-[#16171d] font-sans text-gray-200;
   }
 
   #root {
-    @apply min-h-svh;
+    @apply min-h-svh min-w-0 overflow-x-hidden;
   }
 }
