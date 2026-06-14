@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:trajectories": "sh scripts/build-trajectories-parquet.sh",
+    "pages:deploy": "pnpm build && wrangler pages deploy dist --project-name=gulp-analysis-site",
     "lint": "eslint .",
     "preview": "vite preview"
   },

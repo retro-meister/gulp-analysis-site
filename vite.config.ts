@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -48,11 +48,34 @@ function loadAssetSizes(): Plugin {
   }
 }
 
-export default defineConfig({
-  plugins: [loadAssetSizes(), stripDuckdbWorkerSourceMap(), react(), tailwindcss()],
-  assetsInclude: ['**/*.wasm'],
-  worker: { format: 'es' },
-  optimizeDeps: {
-    exclude: ['@duckdb/duckdb-wasm'],
-  },
+function stripRemoteDataAssets(r2BaseUrl?: string): Plugin {
+  return {
+    name: 'strip-remote-data-assets',
+    closeBundle() {
+      if (!r2BaseUrl) return
+      const dist = path.join(root, 'dist')
+      for (const file of ['gulp_sweep.csv', 'gulp_trajectories.parquet']) {
+        const target = path.join(dist, file)
+        if (fs.existsSync(target)) fs.unlinkSync(target)
+      }
+    },
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, root, '')
+  return {
+    plugins: [
+      loadAssetSizes(),
+      stripDuckdbWorkerSourceMap(),
+      stripRemoteDataAssets(env.VITE_R2_BASE_URL),
+      react(),
+      tailwindcss(),
+    ],
+    assetsInclude: ['**/*.wasm'],
+    worker: { format: 'es' },
+    optimizeDeps: {
+      exclude: ['@duckdb/duckdb-wasm'],
+    },
+  }
 })

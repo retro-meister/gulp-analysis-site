@@ -2,6 +2,7 @@ import * as duckdb from '@duckdb/duckdb-wasm'
 import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
 import Worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?worker'
 import { loadAssetBytes, loadTotalBytes } from 'virtual:load-sizes'
+import { dataAssetUrl } from './dataAssets'
 
 export type Zone = 'dominator' | 'tradeoff' | 'dominated' | 'wr'
 
@@ -204,7 +205,9 @@ class LoadTracker {
     label: string,
     knownSize: number,
   ): Promise<Uint8Array> {
-    const resolved = new URL(url, window.location.origin).href
+    const resolved = /^https?:\/\//.test(url)
+      ? url
+      : new URL(url, window.location.origin).href
     const res = await fetch(resolved)
     if (!res.ok) throw new Error(`Failed to load ${url}`)
 
@@ -289,7 +292,7 @@ export async function loadDominanceData(
 
   try {
     const sweepBuffer = await tracker.fetchBytes(
-      '/gulp_sweep.csv',
+      dataAssetUrl('gulp_sweep.csv'),
       'sweep',
       'Loading sweep data…',
       loadAssetBytes.sweep,
@@ -299,7 +302,7 @@ export async function loadDominanceData(
     if (!trajectoriesReady) {
       trajectoriesReady = (async () => {
         const parquetBuffer = await tracker.fetchBytes(
-          '/gulp_trajectories.parquet',
+          dataAssetUrl('gulp_trajectories.parquet'),
           'trajectories',
           'Loading trajectory data…',
           loadAssetBytes.trajectories,
@@ -361,7 +364,7 @@ async function ensureTrajectoriesLoaded() {
   if (!trajectoriesReady) {
     trajectoriesReady = (async () => {
       const db = await getDb()
-      const res = await fetch('/gulp_trajectories.parquet')
+      const res = await fetch(dataAssetUrl('gulp_trajectories.parquet'))
       if (!res.ok) throw new Error('Failed to load gulp_trajectories.parquet')
       const buffer = new Uint8Array(await res.arrayBuffer())
       await db.registerFileBuffer('gulp_trajectories.parquet', buffer)

@@ -1,0 +1,5 @@
+/*.wasm
+  Content-Type: application/wasm
+
+/assets/*.wasm
+  Content-Type: application/wasm

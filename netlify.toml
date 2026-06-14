@@ -5,6 +5,7 @@
 [build.environment]
   NODE_VERSION = "22"
   PNPM_VERSION = "9"
+  VITE_R2_BASE_URL = "https://pub-9b8c3c0c87714f7783a2bad297834dbd.r2.dev"
 
 [[headers]]
   for = "/*.wasm"
