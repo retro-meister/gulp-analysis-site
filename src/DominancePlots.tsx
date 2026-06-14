@@ -1658,8 +1658,8 @@ export function DominancePlots({
       ))}
       {cycles.length > 0 && (
         <div className="mt-8 w-full max-w-2xl border-t border-gray-600 pt-6 text-center">
-          <p className="text-[11px] uppercase tracking-wide text-gray-500">
-            All cycles back to back
+          <p className="text-sm font-semibold uppercase tracking-wider text-gray-200">
+            All cycles back to back calculation:
           </p>
           <p className="mt-2 text-[15px] text-gray-200">
             <CombinedOddsExpression inputs={referenceStats} /> ={' '}
