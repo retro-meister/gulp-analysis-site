@@ -211,7 +211,8 @@ class LoadTracker {
     const res = await fetch(resolved)
     if (!res.ok) throw new Error(`Failed to load ${url}`)
 
-    if (!res.body || !this.onProgress) {
+    const isRemote = resolved.startsWith('http')
+    if (isRemote || !res.body || !this.onProgress) {
       const buffer = new Uint8Array(await res.arrayBuffer())
       this.completedBytes += buffer.byteLength
       this.emit(phase, label, buffer.byteLength, knownSize, 0)
@@ -299,19 +300,6 @@ export async function loadDominanceData(
     )
     await db.registerFileBuffer('gulp_sweep.csv', sweepBuffer)
 
-    if (!trajectoriesReady) {
-      trajectoriesReady = (async () => {
-        const parquetBuffer = await tracker.fetchBytes(
-          dataAssetUrl('gulp_trajectories.parquet'),
-          'trajectories',
-          'Loading trajectory data…',
-          loadAssetBytes.trajectories,
-        )
-        await db.registerFileBuffer('gulp_trajectories.parquet', parquetBuffer)
-      })()
-    }
-    await trajectoriesReady
-
     tracker.startPhase('queries', 'Analyzing data…')
 
     await conn.query(await fetchSql('/sql/load.sql'))
@@ -364,7 +352,11 @@ async function ensureTrajectoriesLoaded() {
   if (!trajectoriesReady) {
     trajectoriesReady = (async () => {
       const db = await getDb()
-      const res = await fetch(dataAssetUrl('gulp_trajectories.parquet'))
+      const url = dataAssetUrl('gulp_trajectories.parquet')
+      const resolved = /^https?:\/\//.test(url)
+        ? url
+        : new URL(url, window.location.origin).href
+      const res = await fetch(resolved)
       if (!res.ok) throw new Error('Failed to load gulp_trajectories.parquet')
       const buffer = new Uint8Array(await res.arrayBuffer())
       await db.registerFileBuffer('gulp_trajectories.parquet', buffer)

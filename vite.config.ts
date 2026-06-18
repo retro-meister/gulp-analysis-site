@@ -41,9 +41,9 @@ function loadAssetSizes(): Plugin {
           path.join(root, 'public/gulp_trajectories.parquet'),
         ).size,
       }
-      const total = sizes.duckdb + sizes.sweep + sizes.trajectories
+      const initialTotal = sizes.duckdb + sizes.sweep
 
-      return `export const loadAssetBytes = ${JSON.stringify(sizes)}; export const loadTotalBytes = ${total};`
+      return `export const loadAssetBytes = ${JSON.stringify(sizes)}; export const loadTotalBytes = ${initialTotal};`
     },
   }
 }
