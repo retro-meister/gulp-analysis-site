@@ -1,4 +1,13 @@
-import { memo, useCallback, useMemo, useRef, useState, useEffect, Fragment } from 'react'
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+  Fragment,
+  type ReactNode,
+} from 'react'
 import type { DominanceRow, DominanceStats, ReferencePoint, Zone } from './db'
 import {
   classifyZone,
@@ -27,10 +36,31 @@ const LATE_CYCLE_WEAPON_CONFIGS = [
   { config: 'RRR', perms: 1, pct: 0.78, tripleable: true },
 ] as const
 
-function LateCycleChanceLabel() {
+function isEditableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  )
+}
+
+function TeaserBlur({
+  active,
+  children,
+  className = '',
+}: {
+  active: boolean
+  children: ReactNode
+  className?: string
+}) {
+  if (!active) return <>{children}</>
+  return <span className={`teaser-blur inline ${className}`.trim()}>{children}</span>
+}
+
+function LateCycleChanceLabel({ teaser }: { teaser: boolean }) {
   return (
     <span className="group/late relative inline cursor-help bg-[length:5px_2px] bg-bottom bg-repeat-x pb-0.5 transition-colors [background-image:radial-gradient(circle,rgb(107_114_128)_1px,transparent_1px)] hover:text-gray-50 hover:[background-image:radial-gradient(circle,rgb(209_213_219)_1px,transparent_1px)]">
-      {LATE_CYCLE_CHANCE_PCT}%
+      <TeaserBlur active={teaser}>{LATE_CYCLE_CHANCE_PCT}%</TeaserBlur>
       <span
         className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-96 -translate-x-1/2 rounded border border-gray-600 bg-gray-950 p-4 text-center text-ui-sm font-normal normal-case tracking-normal text-gray-300 no-underline shadow-xl group-hover/late:block min-[1920px]:w-[28rem] min-[1920px]:p-5 min-[1920px]:text-ui-base"
         role="tooltip"
@@ -307,8 +337,14 @@ function combinedDominatorChance(inputs: CycleOddsInput[]): {
   }
 }
 
-function CombinedOddsExpression({ inputs }: { inputs: CycleOddsInput[] }) {
-  return (
+function CombinedOddsExpression({
+  inputs,
+  teaser,
+}: {
+  inputs: CycleOddsInput[]
+  teaser: boolean
+}) {
+  const expression = (
     <>
       {inputs.map((input, i) => {
         const factor = formatCycleOddsFactor(
@@ -321,7 +357,7 @@ function CombinedOddsExpression({ inputs }: { inputs: CycleOddsInput[] }) {
             {i > 0 && ' × '}
             {input.cycle >= 3 ? (
               <>
-                ({factor} × <LateCycleChanceLabel />)
+                ({factor} × <LateCycleChanceLabel teaser={teaser} />)
               </>
             ) : (
               factor
@@ -331,6 +367,8 @@ function CombinedOddsExpression({ inputs }: { inputs: CycleOddsInput[] }) {
       })}
     </>
   )
+
+  return <TeaserBlur active={teaser}>{expression}</TeaserBlur>
 }
 
 function parseDropSlot(value: string): number | null {
@@ -678,6 +716,7 @@ function CyclePanel({
   selectedSimIndex,
   reference,
   keyboardActive,
+  teaser,
   onActivate,
   onSelect,
   onSetReference,
@@ -688,6 +727,7 @@ function CyclePanel({
   selectedSimIndex: number
   reference: ReferencePoint
   keyboardActive: boolean
+  teaser: boolean
   onActivate: () => void
   onSelect: (simIndex: number) => void
   onSetReference: (reference: ReferencePoint) => void
@@ -867,16 +907,20 @@ function CyclePanel({
     <div className="flex w-full flex-col items-center">
       <p className="mb-2 text-ui-lg text-gray-300 min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
         1 in{' '}
-        <span className="font-semibold text-gray-100">
+        <TeaserBlur active={teaser} className="font-semibold text-gray-100">
           {oneInXForCycle(
             displayStats,
             rows.length,
             reference.simIndex != null,
           )}
-        </span>
+        </TeaserBlur>
         <span className="text-gray-500">
           {' '}
-          ({displayStats.pct_dominators}% dominators)
+          (
+          <TeaserBlur active={teaser}>
+            {displayStats.pct_dominators}% dominators
+          </TeaserBlur>
+          )
         </span>
       </p>
       <div className="flex items-center gap-1">
@@ -1064,38 +1108,40 @@ function CyclePanel({
             />
           </g>
 
-          <rect
-            x={PAD.left + 4}
-            y={PAD.top + 4}
-            width={168}
-            height={66}
-            fill="#222222"
-            fillOpacity={0.7}
-            rx={2}
-          />
-          <>
-            <text
-              x={PAD.left + 10}
-              y={PAD.top + 18}
-              className="fill-gray-200 text-[8px]"
-            >
-              Dominators: {displayStats.n_dominators} ({displayStats.pct_dominators}%)
-            </text>
-            <text
-              x={PAD.left + 10}
-              y={PAD.top + 32}
-              className="fill-gray-200 text-[8px]"
-            >
-              Tradeoff: {displayStats.n_tradeoff} ({displayStats.pct_tradeoff}%)
-            </text>
-            <text
-              x={PAD.left + 10}
-              y={PAD.top + 46}
-              className="fill-gray-200 text-[8px]"
-            >
-              Dominated: {displayStats.n_dominated} ({displayStats.pct_dominated}%)
-            </text>
-          </>
+          {!teaser && (
+            <>
+              <rect
+                x={PAD.left + 4}
+                y={PAD.top + 4}
+                width={168}
+                height={66}
+                fill="#222222"
+                fillOpacity={0.7}
+                rx={2}
+              />
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 18}
+                className="fill-gray-200 text-[8px]"
+              >
+                Dominators: {displayStats.n_dominators} ({displayStats.pct_dominators}%)
+              </text>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 32}
+                className="fill-gray-200 text-[8px]"
+              >
+                Tradeoff: {displayStats.n_tradeoff} ({displayStats.pct_tradeoff}%)
+              </text>
+              <text
+                x={PAD.left + 10}
+                y={PAD.top + 46}
+                className="fill-gray-200 text-[8px]"
+              >
+                Dominated: {displayStats.n_dominated} ({displayStats.pct_dominated}%)
+              </text>
+            </>
+          )}
 
           <text
             x={W / 2}
@@ -1179,6 +1225,7 @@ export function DominancePlots({
   })
   const [reference, setReference] = useState(() => defaultReference(rows, cycles))
   const [activeCycle, setActiveCycle] = useState(() => cycles[0] ?? 1)
+  const [teaserMode, setTeaserMode] = useState(false)
 
   const activeCalculation = useMemo(
     () => getActiveCalculationId(reference, rows, cycles),
@@ -1194,16 +1241,15 @@ export function DominancePlots({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'p' && e.key !== 'P') return
-      if (!e.shiftKey || !(e.metaKey || e.ctrlKey)) return
-      const target = e.target
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement
-      ) {
+      if (isEditableTarget(e.target)) return
+
+      if (e.key === 'h' || e.key === 'H') {
+        setTeaserMode((on) => !on)
         return
       }
+
+      if (e.key !== 'p' && e.key !== 'P') return
+      if (!e.shiftKey || !(e.metaKey || e.ctrlKey)) return
       e.preventDefault()
       const snippet = formatReferencePresetSnippet(cycles, reference)
       void navigator.clipboard.writeText(snippet)
@@ -1313,6 +1359,7 @@ export function DominancePlots({
             selectedSimIndex={selected[cycle]}
             reference={reference[cycle]}
             keyboardActive={activeCycle === cycle}
+            teaser={teaserMode}
             onActivate={() => setActiveCycle(cycle)}
             onSelect={(simIndex) => handleSelect(cycle, simIndex)}
             onSetReference={(ref) => handleSetReference(cycle, ref)}
@@ -1326,10 +1373,11 @@ export function DominancePlots({
             All cycles back to back calculation:
           </p>
           <p className="mt-2 whitespace-nowrap text-ui-lg text-gray-200 min-[1920px]:text-ui-3xl">
-            <CombinedOddsExpression inputs={referenceStats} /> ={' '}
-            <span className="font-semibold text-gray-50">
-              1 in {combined.oneInX}
-            </span>
+            <CombinedOddsExpression inputs={referenceStats} teaser={teaserMode} /> ={' '}
+            1 in{' '}
+            <TeaserBlur active={teaserMode} className="font-semibold text-gray-50">
+              {combined.oneInX}
+            </TeaserBlur>
           </p>
         </div>
       )}
@@ -1341,10 +1389,11 @@ export function DominancePlots({
               Total probability calculation:
             </p>
             <p className="mt-2 whitespace-nowrap text-ui-lg text-gray-200 min-[1920px]:text-ui-3xl">
-              <CombinedOddsExpression inputs={referenceStats} /> ={' '}
-              <span className="font-bold text-white">
-                1 in {combined.oneInX}
-              </span>
+              <CombinedOddsExpression inputs={referenceStats} teaser={teaserMode} /> ={' '}
+              1 in{' '}
+              <TeaserBlur active={teaserMode} className="font-bold text-white">
+                {combined.oneInX}
+              </TeaserBlur>
             </p>
           </div>
         </div>

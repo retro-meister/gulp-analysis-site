@@ -85,6 +85,11 @@
   .h-loading-bar {
     height: var(--loading-bar-height);
   }
+
+  .teaser-blur {
+    filter: blur(0.28em);
+    user-select: none;
+  }
 }
 
 @layer base {
