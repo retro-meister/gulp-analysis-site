@@ -1,6 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm'
 import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
 import Worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?worker'
+import { loadAssetBytes, loadTotalBytes } from 'virtual:load-sizes'
 import { dataAssetUrl } from './dataAssets'
 
 export type Zone = 'dominator' | 'tradeoff' | 'dominated' | 'wr'
@@ -150,34 +151,130 @@ export type TrajectoryData = {
   frames: Map<number, TrajectoryBird[]>
 }
 
-export type LoadStatus = string
+export type LoadProgress = {
+  phase: 'duckdb' | 'sweep' | 'trajectories' | 'queries'
+  label: string
+  loaded: number
+  total: number | null
+  overallLoaded: number
+  overallTotal: number | null
+}
+
+class LoadTracker {
+  private completedBytes = 0
+  private onProgress?: (progress: LoadProgress) => void
+
+  constructor(onProgress?: (progress: LoadProgress) => void) {
+    this.onProgress = onProgress
+    if (onProgress) {
+      onProgress({
+        phase: 'duckdb',
+        label: 'Loading DuckDB engine…',
+        loaded: 0,
+        total: loadAssetBytes.duckdb,
+        overallLoaded: 0,
+        overallTotal: loadTotalBytes,
+      })
+    }
+  }
+
+  private emit(
+    phase: LoadProgress['phase'],
+    label: string,
+    loaded: number,
+    total: number,
+    fileLoaded: number,
+  ) {
+    this.onProgress?.({
+      phase,
+      label,
+      loaded,
+      total,
+      overallLoaded: this.completedBytes + fileLoaded,
+      overallTotal: loadTotalBytes,
+    })
+  }
+
+  startPhase(phase: LoadProgress['phase'], label: string) {
+    this.emit(phase, label, 0, loadTotalBytes, 0)
+  }
+
+  async fetchBytes(
+    url: string,
+    phase: LoadProgress['phase'],
+    label: string,
+    knownSize: number,
+  ): Promise<Uint8Array> {
+    const resolved = /^https?:\/\//.test(url)
+      ? url
+      : new URL(url, window.location.origin).href
+    const res = await fetch(resolved)
+    if (!res.ok) throw new Error(`Failed to load ${url}`)
+
+    if (!res.body || !this.onProgress) {
+      const buffer = new Uint8Array(await res.arrayBuffer())
+      this.completedBytes += buffer.byteLength
+      this.emit(phase, label, buffer.byteLength, knownSize, 0)
+      return buffer
+    }
+
+    const reader = res.body.getReader()
+    const chunks: Uint8Array[] = []
+    let loaded = 0
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      loaded += value.length
+      this.emit(phase, label, loaded, knownSize, loaded)
+    }
+
+    const buffer = new Uint8Array(loaded)
+    let offset = 0
+    for (const chunk of chunks) {
+      buffer.set(chunk, offset)
+      offset += chunk.length
+    }
+
+    this.completedBytes += loaded
+    this.emit(phase, label, loaded, knownSize, 0)
+    return buffer
+  }
+}
 
 let dbPromise: Promise<duckdb.AsyncDuckDB> | null = null
 let trajectoriesReady: Promise<void> | null = null
 const trajectoryCache = new Map<number, TrajectoryData>()
 
-async function createDb(): Promise<duckdb.AsyncDuckDB> {
+async function createDb(tracker?: LoadTracker): Promise<duckdb.AsyncDuckDB> {
   const logger = new duckdb.ConsoleLogger()
   const db = new duckdb.AsyncDuckDB(logger, new Worker())
-  await db.instantiate(duckdb_wasm)
+  const wasm = await (tracker?.fetchBytes(
+    duckdb_wasm,
+    'duckdb',
+    'Loading DuckDB engine…',
+    loadAssetBytes.duckdb,
+  ) ?? fetch(duckdb_wasm).then(async (res) => {
+    if (!res.ok) throw new Error('Failed to load DuckDB WASM')
+    return new Uint8Array(await res.arrayBuffer())
+  }))
+  const wasmUrl = URL.createObjectURL(
+    new Blob([Uint8Array.from(wasm)], { type: 'application/wasm' }),
+  )
+  try {
+    await db.instantiate(wasmUrl)
+  } finally {
+    URL.revokeObjectURL(wasmUrl)
+  }
   return db
 }
 
-async function getDb() {
+async function getDb(tracker?: LoadTracker) {
   if (!dbPromise) {
-    dbPromise = createDb()
+    dbPromise = createDb(tracker)
   }
   return dbPromise
-}
-
-async function fetchAsset(path: string): Promise<Uint8Array> {
-  const url = dataAssetUrl(path)
-  const resolved = /^https?:\/\//.test(url)
-    ? url
-    : new URL(url, window.location.origin).href
-  const res = await fetch(resolved)
-  if (!res.ok) throw new Error(`Failed to load ${path}`)
-  return new Uint8Array(await res.arrayBuffer())
 }
 
 async function fetchSql(path: string) {
@@ -187,18 +284,35 @@ async function fetchSql(path: string) {
 }
 
 export async function loadDominanceData(
-  onStatus?: (status: LoadStatus) => void,
+  onProgress?: (progress: LoadProgress) => void,
 ): Promise<DominanceData> {
-  onStatus?.('Starting DuckDB…')
-  const db = await getDb()
+  const tracker = new LoadTracker(onProgress)
+  const db = await getDb(tracker)
   const conn = await db.connect()
 
   try {
-    onStatus?.('Loading sweep data…')
-    const sweepBuffer = await fetchAsset('gulp_sweep.csv')
+    const sweepBuffer = await tracker.fetchBytes(
+      dataAssetUrl('gulp_sweep.csv'),
+      'sweep',
+      'Loading sweep data…',
+      loadAssetBytes.sweep,
+    )
     await db.registerFileBuffer('gulp_sweep.csv', sweepBuffer)
 
-    onStatus?.('Analyzing data…')
+    if (!trajectoriesReady) {
+      trajectoriesReady = (async () => {
+        const parquetBuffer = await tracker.fetchBytes(
+          dataAssetUrl('gulp_trajectories.parquet'),
+          'trajectories',
+          'Loading trajectory data…',
+          loadAssetBytes.trajectories,
+        )
+        await db.registerFileBuffer('gulp_trajectories.parquet', parquetBuffer)
+      })()
+    }
+    await trajectoriesReady
+
+    tracker.startPhase('queries', 'Analyzing data…')
 
     await conn.query(await fetchSql('/sql/load.sql'))
 
@@ -250,7 +364,9 @@ async function ensureTrajectoriesLoaded() {
   if (!trajectoriesReady) {
     trajectoriesReady = (async () => {
       const db = await getDb()
-      const buffer = await fetchAsset('gulp_trajectories.parquet')
+      const res = await fetch(dataAssetUrl('gulp_trajectories.parquet'))
+      if (!res.ok) throw new Error('Failed to load gulp_trajectories.parquet')
+      const buffer = new Uint8Array(await res.arrayBuffer())
       await db.registerFileBuffer('gulp_trajectories.parquet', buffer)
     })()
   }

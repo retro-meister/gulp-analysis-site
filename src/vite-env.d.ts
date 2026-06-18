@@ -7,3 +7,12 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+declare module 'virtual:load-sizes' {
+  export const loadAssetBytes: {
+    duckdb: number
+    sweep: number
+    trajectories: number
+  }
+  export const loadTotalBytes: number
+}

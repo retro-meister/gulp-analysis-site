@@ -17,6 +17,37 @@ function stripDuckdbWorkerSourceMap(): Plugin {
   }
 }
 
+function loadAssetSizes(): Plugin {
+  const virtualId = 'virtual:load-sizes'
+  const resolvedId = '\0' + virtualId
+
+  return {
+    name: 'load-asset-sizes',
+    resolveId(id) {
+      if (id === virtualId) return resolvedId
+    },
+    load(id) {
+      if (id !== resolvedId) return
+
+      const sizes = {
+        duckdb: fs.statSync(
+          path.join(
+            root,
+            'node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm',
+          ),
+        ).size,
+        sweep: fs.statSync(path.join(root, 'public/gulp_sweep.csv')).size,
+        trajectories: fs.statSync(
+          path.join(root, 'public/gulp_trajectories.parquet'),
+        ).size,
+      }
+      const total = sizes.duckdb + sizes.sweep + sizes.trajectories
+
+      return `export const loadAssetBytes = ${JSON.stringify(sizes)}; export const loadTotalBytes = ${total};`
+    },
+  }
+}
+
 function remoteDuckdbWasm(r2BaseUrl?: string): Plugin {
   const virtualId = '\0virtual:duckdb-mvp.wasm'
 
@@ -62,6 +93,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       remoteDuckdbWasm(env.VITE_R2_BASE_URL),
+      loadAssetSizes(),
       stripDuckdbWorkerSourceMap(),
       stripRemoteDataAssets(env.VITE_R2_BASE_URL),
       react(),
