@@ -63,7 +63,7 @@ function LateCycleChanceLabel({ teaser }: { teaser: boolean }) {
     <span className="group/late relative inline cursor-help bg-[length:5px_2px] bg-bottom bg-repeat-x pb-0.5 transition-colors [background-image:radial-gradient(circle,rgb(107_114_128)_1px,transparent_1px)] hover:text-gray-50 hover:[background-image:radial-gradient(circle,rgb(209_213_219)_1px,transparent_1px)]">
       <TeaserBlur active={teaser}>{LATE_CYCLE_CHANCE_PCT}%</TeaserBlur>
       <span
-        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-96 -translate-x-1/2 rounded border border-gray-600 bg-gray-950 p-4 text-center text-ui-sm font-normal normal-case tracking-normal text-gray-300 no-underline shadow-xl group-hover/late:block min-[1920px]:w-[28rem] min-[1920px]:p-5 min-[1920px]:text-ui-base"
+        className="pointer-events-none absolute top-full left-1/2 z-50 mt-2 hidden w-96 -translate-x-1/2 rounded border border-gray-600 bg-gray-950 p-4 text-center text-ui-sm font-normal normal-case tracking-normal text-gray-300 no-underline shadow-xl group-hover/late:block min-[1920px]:w-[28rem] min-[1920px]:p-5 min-[1920px]:text-ui-base"
         role="tooltip"
       >
         <p className="text-gray-100">
@@ -96,7 +96,7 @@ function LateCycleChanceLabel({ teaser }: { teaser: boolean }) {
           </tbody>
         </table>
         <div className="my-2 h-px w-full bg-gray-600 min-[1920px]:my-3" aria-hidden />
-        <p className="text-ui-sm text-gray-400 min-[1920px]:text-ui-base">
+        <p className="text-ui-sm font-bold text-gray-200 min-[1920px]:text-ui-base">
           Tripleable rows sum to {LATE_CYCLE_CHANCE_PCT}%.
         </p>
       </span>
@@ -957,14 +957,6 @@ function CyclePanel({
             </TeaserBlur>
           </>
         )}
-        <span className="font-normal text-gray-500">
-          {' '}
-          (
-          <TeaserBlur active={teaser}>
-            {displayStats.pct_dominators}% dominators
-          </TeaserBlur>
-          )
-        </span>
       </p>
       <div className="flex items-center gap-1">
       <div
