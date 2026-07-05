@@ -16,7 +16,7 @@ import {
   statsForReference,
 } from './db'
 import { TrajectoryPlayback } from './TrajectoryPlayback'
-import { referenceFromPreset, referencePresets, formatReferencePresetSnippet, defaultReference, getActiveCalculationId } from './referencePresets'
+import { referenceFromPreset, referencePresets, formatReferencePresetSnippet, defaultReference, defaultPresetId, getActiveCalculationId } from './referencePresets'
 import { formatDisplayFrame } from './cycleFrames'
 
 const PAD = { top: 24, right: 16, bottom: 48, left: 58 }
@@ -1296,36 +1296,6 @@ export function DominancePlots({
     }`
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (isEditableTarget(e.target)) return
-
-      if (e.key === 'h' || e.key === 'H') {
-        setTeaserMode((on) => !on)
-        return
-      }
-
-      if (e.key === 'j' || e.key === 'J') {
-        setShowTotalProbability((on) => !on)
-        return
-      }
-
-      if (e.key === 'k' || e.key === 'K') {
-        setFilterDrop21((on) => !on)
-        return
-      }
-
-      if (e.key !== 'p' && e.key !== 'P') return
-      if (!e.shiftKey || !(e.metaKey || e.ctrlKey)) return
-      e.preventDefault()
-      const snippet = formatReferencePresetSnippet(cycles, reference)
-      void navigator.clipboard.writeText(snippet)
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [cycles, reference])
-
-  useEffect(() => {
     setSelected((prev) => {
       let changed = false
       const next = { ...prev }
@@ -1408,6 +1378,70 @@ export function DominancePlots({
     },
     [cycles],
   )
+
+  const handleApplyWrReference = useCallback(() => {
+    const refs = defaultWrReference(filteredRows, cycles)
+    setReference((prev) => ({ ...prev, ...refs }))
+    setSelected((prev) => {
+      const next = { ...prev }
+      for (const cycle of cycles) {
+        if (refs[cycle]?.simIndex != null) {
+          next[cycle] = refs[cycle].simIndex!
+        }
+      }
+      return next
+    })
+  }, [filteredRows, cycles])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return
+
+      if (e.key === 'h' || e.key === 'H') {
+        setTeaserMode((on) => !on)
+        return
+      }
+
+      if (e.key === 'j' || e.key === 'J') {
+        setShowTotalProbability((on) => !on)
+        return
+      }
+
+      if (e.key === 'k' || e.key === 'K') {
+        setFilterDrop21((on) => !on)
+        return
+      }
+
+      if (e.key === '1') {
+        handleApplyWrReference()
+        return
+      }
+
+      if (e.key === '2') {
+        handleApplyPreset(defaultPresetId)
+        return
+      }
+
+      if (e.key === '3') {
+        handleApplyPreset('realistic')
+        return
+      }
+
+      if (e.key !== 'p' && e.key !== 'P') return
+      if (!e.shiftKey || !(e.metaKey || e.ctrlKey)) return
+      e.preventDefault()
+      const snippet = formatReferencePresetSnippet(cycles, reference)
+      void navigator.clipboard.writeText(snippet)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [
+    cycles,
+    reference,
+    handleApplyWrReference,
+    handleApplyPreset,
+  ])
 
   const referenceStats = useMemo(
     () =>
