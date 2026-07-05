@@ -1257,6 +1257,15 @@ export function DominancePlots({
   const [showPresetButtons, setShowPresetButtons] = useState(true)
   const [filterDrop21, setFilterDrop21] = useState(false)
 
+  useEffect(() => {
+    document.documentElement.classList.toggle('scrollbar-hidden', !showPresetButtons)
+    document.body.classList.toggle('scrollbar-hidden', !showPresetButtons)
+    return () => {
+      document.documentElement.classList.remove('scrollbar-hidden')
+      document.body.classList.remove('scrollbar-hidden')
+    }
+  }, [showPresetButtons])
+
   const filteredRows = useMemo(
     () => filterDrop21Rows(rows, filterDrop21),
     [rows, filterDrop21],
