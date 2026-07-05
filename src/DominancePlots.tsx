@@ -1247,6 +1247,7 @@ export function DominancePlots({
 }) {
   const [teaserMode, setTeaserMode] = useState(false)
   const [showTotalProbability, setShowTotalProbability] = useState(true)
+  const [showPresetButtons, setShowPresetButtons] = useState(true)
   const [filterDrop21, setFilterDrop21] = useState(false)
 
   const filteredRows = useMemo(
@@ -1412,6 +1413,11 @@ export function DominancePlots({
         return
       }
 
+      if (e.key === 'l' || e.key === 'L') {
+        setShowPresetButtons((on) => !on)
+        return
+      }
+
       if (e.key === '1') {
         handleApplyWrReference()
         return
@@ -1464,28 +1470,30 @@ export function DominancePlots({
       <div
         className={`flex flex-col items-center ${showTotalProbability ? 'pb-32 min-[1920px]:pb-44' : ''}`}
       >
-        <div className="mb-6 flex flex-wrap items-center justify-center gap-x-1 gap-y-3 min-[1920px]:mb-8 min-[1920px]:gap-y-4">
-        {referencePresets.map((preset, i) => (
-          <Fragment key={preset.id}>
-            {i > 0 && (
-              <div
-                className="mx-2 h-4 w-px shrink-0 bg-gray-600 min-[1920px]:h-6"
-                aria-hidden
-              />
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                handleApplyPreset(preset.id)
-                e.currentTarget.blur()
-              }}
-              className={calculationButtonClass(activeCalculation === preset.id)}
-            >
-              {preset.label}
-            </button>
-          </Fragment>
-        ))}
-      </div>
+        {showPresetButtons && (
+          <div className="mb-6 flex flex-wrap items-center justify-center gap-x-1 gap-y-3 min-[1920px]:mb-8 min-[1920px]:gap-y-4">
+            {referencePresets.map((preset, i) => (
+              <Fragment key={preset.id}>
+                {i > 0 && (
+                  <div
+                    className="mx-2 h-4 w-px shrink-0 bg-gray-600 min-[1920px]:h-6"
+                    aria-hidden
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    handleApplyPreset(preset.id)
+                    e.currentTarget.blur()
+                  }}
+                  className={calculationButtonClass(activeCalculation === preset.id)}
+                >
+                  {preset.label}
+                </button>
+              </Fragment>
+            ))}
+          </div>
+        )}
       {cycles.map((cycle, i) => (
         <div key={cycle} className="flex w-full flex-col items-center">
           {i > 0 && <div className="my-6 h-px w-full bg-gray-600" />}
