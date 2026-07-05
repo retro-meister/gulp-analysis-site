@@ -491,6 +491,7 @@ function DropLookup({
   onSetReference,
   onResetReference,
   referenceIsWr,
+  showReferenceButtons,
 }: {
   cycle: number
   rows: DominanceRow[]
@@ -499,6 +500,7 @@ function DropLookup({
   onSetReference: () => void
   onResetReference: () => void
   referenceIsWr: boolean
+  showReferenceButtons: boolean
 }) {
   const threeBird = cycle >= 3
   const [bird0, setBird0] = useState(String(selected.bird0_drop))
@@ -567,23 +569,25 @@ function DropLookup({
           />
         )}
       </div>
-      <div className="flex flex-col items-center gap-1.5 min-[1920px]:gap-2">
-        <button
-          type="button"
-          onClick={onSetReference}
-          className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-ui-base text-gray-200 hover:bg-gray-700 min-[1920px]:px-4 min-[1920px]:py-1.5 min-[1920px]:text-ui-lg"
-        >
-          Set reference
-        </button>
-        <button
-          type="button"
-          onClick={onResetReference}
-          disabled={referenceIsWr}
-          className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-ui-base text-gray-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:border-gray-700 disabled:bg-gray-900 disabled:text-gray-500 disabled:hover:bg-gray-900 min-[1920px]:px-4 min-[1920px]:py-1.5 min-[1920px]:text-ui-lg"
-        >
-          Reset to WR
-        </button>
-      </div>
+      {showReferenceButtons && (
+        <div className="flex flex-col items-center gap-1.5 min-[1920px]:gap-2">
+          <button
+            type="button"
+            onClick={onSetReference}
+            className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-ui-base text-gray-200 hover:bg-gray-700 min-[1920px]:px-4 min-[1920px]:py-1.5 min-[1920px]:text-ui-lg"
+          >
+            Set reference
+          </button>
+          <button
+            type="button"
+            onClick={onResetReference}
+            disabled={referenceIsWr}
+            className="rounded border border-gray-600 bg-gray-800 px-3 py-1 text-ui-base text-gray-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:border-gray-700 disabled:bg-gray-900 disabled:text-gray-500 disabled:hover:bg-gray-900 min-[1920px]:px-4 min-[1920px]:py-1.5 min-[1920px]:text-ui-lg"
+          >
+            Reset to WR
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -735,6 +739,7 @@ function CyclePanel({
   reference,
   keyboardActive,
   teaser,
+  showReferenceButtons,
   onActivate,
   onSelect,
   onSetReference,
@@ -746,6 +751,7 @@ function CyclePanel({
   reference: ReferencePoint
   keyboardActive: boolean
   teaser: boolean
+  showReferenceButtons: boolean
   onActivate: () => void
   onSelect: (simIndex: number) => void
   onSetReference: (reference: ReferencePoint) => void
@@ -929,7 +935,7 @@ function CyclePanel({
 
   return (
     <div className="flex w-full flex-col items-center">
-      <p className="mb-2 text-ui-lg font-bold text-white min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
+      <p className="mb-2 text-ui-xl font-bold text-white min-[1920px]:mb-2.5 min-[1920px]:text-ui-2xl">
         {cycle >= 3 ? (
           <>
             <TeaserBlur active={teaser} className="text-white">
@@ -991,7 +997,7 @@ function CyclePanel({
             x={W / 2}
             y={16}
             textAnchor="middle"
-            className="fill-gray-200 text-[13px] font-medium"
+            className="fill-gray-200 text-[13px] font-bold"
           >
             Cycle {cycle} ({rows.length.toLocaleString()} permutations)
           </text>
@@ -1211,6 +1217,7 @@ function CyclePanel({
         }
         onResetReference={onResetReference}
         referenceIsWr={referenceIsWr}
+        showReferenceButtons={showReferenceButtons}
       />
       <TrajectoryPlayback
         key={selected.sim_index}
@@ -1504,6 +1511,7 @@ export function DominancePlots({
             reference={reference[cycle]}
             keyboardActive={activeCycle === cycle}
             teaser={teaserMode}
+            showReferenceButtons={showPresetButtons}
             onActivate={() => setActiveCycle(cycle)}
             onSelect={(simIndex) => handleSelect(cycle, simIndex)}
             onSetReference={(ref) => handleSetReference(cycle, ref)}
