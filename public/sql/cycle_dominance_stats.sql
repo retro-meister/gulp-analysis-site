@@ -16,9 +16,6 @@ WITH sweeps AS (
             OR (cycle = 4 AND bird0_drop = 25 AND bird1_drop = 10 AND bird2_drop = 11)
         ) AS is_wr
     FROM gulp_sweep
-    WHERE bird0_drop <> 21
-      AND bird1_drop <> 21
-      AND (bird2_drop IS NULL OR bird2_drop <> 21)
 ),
 wr AS (
     SELECT

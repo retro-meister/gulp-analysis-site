@@ -89,6 +89,22 @@ export type ReferencePoint = {
   simIndex: number | null
 }
 
+export function rowUsesDropSlot21(row: DominanceRow): boolean {
+  return (
+    row.bird0_drop === 21 ||
+    row.bird1_drop === 21 ||
+    row.bird2_drop === 21
+  )
+}
+
+export function filterDrop21Rows(
+  rows: DominanceRow[],
+  excludeDrop21: boolean,
+): DominanceRow[] {
+  if (!excludeDrop21) return rows
+  return rows.filter((row) => !rowUsesDropSlot21(row))
+}
+
 export function statsForReference(
   rows: DominanceRow[],
   ref: ReferencePoint,

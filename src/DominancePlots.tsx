@@ -11,6 +11,7 @@ import {
 import type { DominanceRow, DominanceStats, ReferencePoint, Zone } from './db'
 import {
   classifyZone,
+  filterDrop21Rows,
   findRowByDrops,
   statsForReference,
 } from './db'
@@ -296,6 +297,23 @@ function oneInXForCycle(
   }
   if (hasSpecificAssignment) return totalPermutations.toLocaleString()
   return '—'
+}
+
+function oneInXForCycleWithLateChance(
+  cycle: number,
+  stats: DominanceStats,
+  totalPermutations: number,
+  hasSpecificAssignment: boolean,
+): string {
+  let p = cycleHitProbability(
+    stats,
+    totalPermutations,
+    hasSpecificAssignment,
+  )
+  if (cycle >= 3) {
+    p *= LATE_CYCLE_CHANCE_PCT / 100
+  }
+  return p > 0 ? Math.round(1 / p).toLocaleString() : '—'
 }
 
 function formatCycleOddsFactor(
@@ -902,19 +920,44 @@ function CyclePanel({
   const yTicks = axisTicks(viewport.yMin, viewport.yMax)
   const plotClipId = `plot-clip-${cycle}`
   const overlayClipId = `overlay-clip-${cycle}`
+  const hasSpecificAssignment = reference.simIndex != null
+  const cycleOddsFactor = formatCycleOddsFactor(
+    displayStats,
+    rows.length,
+    hasSpecificAssignment,
+  )
 
   return (
     <div className="flex w-full flex-col items-center">
-      <p className="mb-2 text-ui-lg text-gray-300 min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
-        1 in{' '}
-        <TeaserBlur active={teaser} className="font-semibold text-gray-100">
-          {oneInXForCycle(
-            displayStats,
-            rows.length,
-            reference.simIndex != null,
-          )}
-        </TeaserBlur>
-        <span className="text-gray-500">
+      <p className="mb-2 text-ui-lg font-bold text-white min-[1920px]:mb-2.5 min-[1920px]:text-ui-xl">
+        {cycle >= 3 ? (
+          <>
+            <TeaserBlur active={teaser} className="text-white">
+              {cycleOddsFactor} × <LateCycleChanceLabel teaser={teaser} />
+            </TeaserBlur>
+            {' = 1 in '}
+            <TeaserBlur active={teaser} className="text-white">
+              {oneInXForCycleWithLateChance(
+                cycle,
+                displayStats,
+                rows.length,
+                hasSpecificAssignment,
+              )}
+            </TeaserBlur>
+          </>
+        ) : (
+          <>
+            1 in{' '}
+            <TeaserBlur active={teaser} className="text-white">
+              {oneInXForCycle(
+                displayStats,
+                rows.length,
+                hasSpecificAssignment,
+              )}
+            </TeaserBlur>
+          </>
+        )}
+        <span className="font-normal text-gray-500">
           {' '}
           (
           <TeaserBlur active={teaser}>
@@ -1210,26 +1253,47 @@ export function DominancePlots({
   rows: DominanceRow[]
   stats: DominanceStats[]
 }) {
+  const [teaserMode, setTeaserMode] = useState(false)
+  const [showTotalProbability, setShowTotalProbability] = useState(true)
+  const [filterDrop21, setFilterDrop21] = useState(false)
+
+  const filteredRows = useMemo(
+    () => filterDrop21Rows(rows, filterDrop21),
+    [rows, filterDrop21],
+  )
+
   const cycles = useMemo(() => {
     const set = new Set<number>()
-    for (const row of rows) set.add(row.cycle)
+    for (const row of filteredRows) set.add(row.cycle)
     return [...set].sort((a, b) => a - b)
-  }, [rows])
+  }, [filteredRows])
   const [selected, setSelected] = useState(() => {
-    const refs = defaultWrReference(rows, cycles)
+    const initialCycles = [...new Set(rows.map((row) => row.cycle))].sort(
+      (a, b) => a - b,
+    )
+    const refs = defaultWrReference(rows, initialCycles)
     const sel: Record<number, number> = {}
-    for (const cycle of cycles) {
+    for (const cycle of initialCycles) {
       if (refs[cycle]?.simIndex != null) sel[cycle] = refs[cycle].simIndex!
     }
     return sel
   })
-  const [reference, setReference] = useState(() => defaultReference(rows, cycles))
-  const [activeCycle, setActiveCycle] = useState(() => cycles[0] ?? 1)
-  const [teaserMode, setTeaserMode] = useState(false)
+  const [reference, setReference] = useState(() => {
+    const initialCycles = [...new Set(rows.map((row) => row.cycle))].sort(
+      (a, b) => a - b,
+    )
+    return defaultReference(rows, initialCycles)
+  })
+  const [activeCycle, setActiveCycle] = useState(() => {
+    const initialCycles = [...new Set(rows.map((row) => row.cycle))].sort(
+      (a, b) => a - b,
+    )
+    return initialCycles[0] ?? 1
+  })
 
   const activeCalculation = useMemo(
-    () => getActiveCalculationId(reference, rows, cycles),
-    [reference, rows, cycles],
+    () => getActiveCalculationId(reference, filteredRows, cycles),
+    [reference, filteredRows, cycles],
   )
 
   const calculationButtonClass = (active: boolean) =>
@@ -1248,6 +1312,16 @@ export function DominancePlots({
         return
       }
 
+      if (e.key === 'j' || e.key === 'J') {
+        setShowTotalProbability((on) => !on)
+        return
+      }
+
+      if (e.key === 'k' || e.key === 'K') {
+        setFilterDrop21((on) => !on)
+        return
+      }
+
       if (e.key !== 'p' && e.key !== 'P') return
       if (!e.shiftKey || !(e.metaKey || e.ctrlKey)) return
       e.preventDefault()
@@ -1259,16 +1333,50 @@ export function DominancePlots({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [cycles, reference])
 
+  useEffect(() => {
+    setSelected((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const cycle of cycles) {
+        const cycleRows = filteredRows.filter((r) => r.cycle === cycle)
+        const current = prev[cycle]
+        if (current == null || cycleRows.some((r) => r.sim_index === current)) {
+          continue
+        }
+        const wr = cycleRows.find((r) => r.is_wr)
+        if (wr) {
+          next[cycle] = wr.sim_index
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+
+    setReference((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const cycle of cycles) {
+        const ref = prev[cycle]
+        if (ref?.simIndex == null) continue
+        const cycleRows = filteredRows.filter((r) => r.cycle === cycle)
+        if (cycleRows.some((r) => r.sim_index === ref.simIndex)) continue
+        next[cycle] = { ...ref, simIndex: null }
+        changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [filteredRows, cycles])
+
   const rowsByCycle = useMemo(() => {
     const map = new Map<number, DominanceRow[]>()
     for (const cycle of cycles) {
       map.set(
         cycle,
-        rows.filter((r) => r.cycle === cycle),
+        filteredRows.filter((r) => r.cycle === cycle),
       )
     }
     return map
-  }, [rows, cycles])
+  }, [filteredRows, cycles])
 
   const handleSelect = useCallback((cycle: number, simIndex: number) => {
     setActiveCycle(cycle)
@@ -1284,7 +1392,7 @@ export function DominancePlots({
 
   const handleResetReference = useCallback(
     (cycle: number) => {
-      const wr = rows.find((r) => r.cycle === cycle && r.is_wr)
+      const wr = filteredRows.find((r) => r.cycle === cycle && r.is_wr)
       if (wr) {
         setActiveCycle(cycle)
         setSelected((prev) => ({ ...prev, [cycle]: wr.sim_index }))
@@ -1294,7 +1402,7 @@ export function DominancePlots({
         }))
       }
     },
-    [rows],
+    [filteredRows],
   )
 
   const handleApplyPreset = useCallback(
@@ -1327,7 +1435,9 @@ export function DominancePlots({
 
   return (
     <>
-      <div className="flex flex-col items-center pb-32 min-[1920px]:pb-44">
+      <div
+        className={`flex flex-col items-center ${showTotalProbability ? 'pb-32 min-[1920px]:pb-44' : ''}`}
+      >
         <div className="mb-6 flex flex-wrap items-center justify-center gap-x-1 gap-y-3 min-[1920px]:mb-8 min-[1920px]:gap-y-4">
         {referencePresets.map((preset, i) => (
           <Fragment key={preset.id}>
@@ -1382,7 +1492,7 @@ export function DominancePlots({
         </div>
       )}
       </div>
-      {cycles.length > 0 && (
+      {cycles.length > 0 && showTotalProbability && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-gray-500 bg-[#1c1d24]/98 px-4 py-4 shadow-[0_-12px_40px_rgba(0,0,0,0.55)] backdrop-blur-sm min-[1920px]:px-8 min-[1920px]:py-5">
           <div className="w-full px-4 text-center min-[1920px]:px-8">
             <p className="text-ui-lg font-bold uppercase tracking-widest text-gray-50 min-[1920px]:text-ui-2xl">
