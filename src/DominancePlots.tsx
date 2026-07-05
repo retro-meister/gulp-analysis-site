@@ -1247,7 +1247,7 @@ export function DominancePlots({
 }) {
   const [teaserMode, setTeaserMode] = useState(false)
   const [showTotalProbability, setShowTotalProbability] = useState(true)
-  const [filterDrop21, setFilterDrop21] = useState(true)
+  const [filterDrop21, setFilterDrop21] = useState(false)
 
   const filteredRows = useMemo(
     () => filterDrop21Rows(rows, filterDrop21),
