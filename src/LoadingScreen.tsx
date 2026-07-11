@@ -19,8 +19,11 @@ export function LoadingScreen({ progress }: { progress: LoadProgress | null }) {
       <div className="w-full max-w-lg rounded-xl border border-gray-800 bg-[#1c1d24] px-8 py-10 shadow-lg min-[1920px]:max-w-3xl min-[1920px]:px-12 min-[1920px]:py-14">
         <div className="text-center">
           <h1 className="text-ui-2xl font-medium tracking-tight text-gray-100">
-            Gulp drop analysis
+            Drashed Gulp Analysis
           </h1>
+          <p className="mt-1 text-ui-lg font-medium tracking-tight text-gray-400">
+            by retromeister
+          </p>
           <p className="mt-3 text-ui-lg text-gray-400 min-[1920px]:mt-4 min-[1920px]:text-ui-xl">
             {progress?.label ?? 'Starting up…'}
           </p>
